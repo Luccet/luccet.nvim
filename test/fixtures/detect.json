@@ -1,0 +1,198 @@
+{
+  "description": "Lines that make an HTML file a Tern note, and lines that do not (docs/tools.html#detection). An editor tests each line of a file against pattern with flags, and the first line that matches is the tern.js line: the head is what comes before the tag (group 1), and the note is every line after the line. Each match case gives the tag that group 1 must capture. pattern is the source of DETECT in cli/note.js; test/cli.js checks that they are the same and that every case holds.",
+  "pattern": "^(?:[^<]|<(?!!--)|<!--(?:[^-]|-(?!->))*-->)*?(<script(?=[\\s>/])(?![^<>]*\\s(?:async|defer|data-built)(?=[\\s=>/]|$))(?![^<>]*\\stype\\s*=\\s*[\"']?module(?=[\"'\\s>/]|$))[^<>]*?\\ssrc\\s*=\\s*([\"']?)(?:[^\"'\\s<>]*\\/)?tern\\.js(?:[?#][^\"'\\s<>]*)?\\2(?=[\\s>/])[^<>]*>)",
+  "flags": "i",
+  "tagGroup": 1,
+  "match": [
+    {
+      "why": "the canonical first line",
+      "line": "<!doctype html><meta charset=\"utf-8\"><script src=\"tern.js\"></script>",
+      "tag": "<script src=\"tern.js\">"
+    },
+    {
+      "why": "the canonical first line with add-ons",
+      "line": "<!doctype html><meta charset=\"utf-8\"><script src=\"tern.js\" data-use=\"theorems.js theme.css\"></script>",
+      "tag": "<script src=\"tern.js\" data-use=\"theorems.js theme.css\">"
+    },
+    {
+      "why": "the line tern new --guarded writes",
+      "line": "<!doctype html><meta charset=\"utf-8\"><script src=\"tern.js\"></script><noscript><p>JavaScript is off; the source follows.</p><xmp hidden></noscript><script>self.tern||document.write('<p>tern.js did not load; the source follows.</p><xmp hidden>')</script></xmp><plaintext>",
+      "tag": "<script src=\"tern.js\">"
+    },
+    {
+      "why": "a relative path",
+      "line": "<script src=\"../../tern.js\"></script>",
+      "tag": "<script src=\"../../tern.js\">"
+    },
+    {
+      "why": "a root-relative path",
+      "line": "<script src=\"/tern.js\"></script>",
+      "tag": "<script src=\"/tern.js\">"
+    },
+    {
+      "why": "a URL on a CDN",
+      "line": "<script src=\"https://cdn.jsdelivr.net/gh/OscarAC/tern@1/tern.js\"></script>",
+      "tag": "<script src=\"https://cdn.jsdelivr.net/gh/OscarAC/tern@1/tern.js\">"
+    },
+    {
+      "why": "single quotes",
+      "line": "<script src='tern.js'></script>",
+      "tag": "<script src='tern.js'>"
+    },
+    {
+      "why": "no quotes",
+      "line": "<script src=tern.js></script>",
+      "tag": "<script src=tern.js>"
+    },
+    {
+      "why": "spaces around =",
+      "line": "<script src = \"tern.js\"></script>",
+      "tag": "<script src = \"tern.js\">"
+    },
+    {
+      "why": "a query string",
+      "line": "<script src=\"tern.js?v=2\"></script>",
+      "tag": "<script src=\"tern.js?v=2\">"
+    },
+    {
+      "why": "a fragment",
+      "line": "<script src=\"lib/tern.js#x\"></script>",
+      "tag": "<script src=\"lib/tern.js#x\">"
+    },
+    {
+      "why": "attributes before and after src",
+      "line": "<script nonce=\"r4nd0m\" src=\"tern.js\" data-katex=\"none\"></script>",
+      "tag": "<script nonce=\"r4nd0m\" src=\"tern.js\" data-katex=\"none\">"
+    },
+    {
+      "why": "a classic script type",
+      "line": "<script type=\"text/javascript\" src=\"tern.js\"></script>",
+      "tag": "<script type=\"text/javascript\" src=\"tern.js\">"
+    },
+    {
+      "why": "upper case tag and attribute",
+      "line": "<SCRIPT SRC=\"tern.js\"></SCRIPT>",
+      "tag": "<SCRIPT SRC=\"tern.js\">"
+    },
+    {
+      "why": "upper case file name (detection is case-insensitive throughout)",
+      "line": "<script src=\"TERN.JS\"></script>",
+      "tag": "<script src=\"TERN.JS\">"
+    },
+    {
+      "why": "the tag in the middle of the line, after head elements",
+      "line": "<html lang=\"de\"><title>Notizen</title><script src=\"tern.js\"></script>",
+      "tag": "<script src=\"tern.js\">"
+    },
+    {
+      "why": "text after the tag on the same line",
+      "line": "<script src=\"tern.js\"></script> <!-- the note starts on the next line -->",
+      "tag": "<script src=\"tern.js\">"
+    },
+    {
+      "why": "a closed comment before the tag",
+      "line": "<!-- my notes --><script src=\"tern.js\"></script>",
+      "tag": "<script src=\"tern.js\">"
+    },
+    {
+      "why": "a data-src before the real src",
+      "line": "<script data-src=\"x.js\" src=\"tern.js\"></script>",
+      "tag": "<script data-src=\"x.js\" src=\"tern.js\">"
+    },
+    {
+      "why": "async and defer as words in other attributes",
+      "line": "<script src=\"tern.js\" data-use=\"async.js defer.css\" data-async=\"1\"></script>",
+      "tag": "<script src=\"tern.js\" data-use=\"async.js defer.css\" data-async=\"1\">"
+    }
+  ],
+  "noMatch": [
+    {
+      "why": "a file named mytern.js",
+      "line": "<script src=\"mytern.js\"></script>"
+    },
+    {
+      "why": "a file named tern.json",
+      "line": "<script src=\"tern.json\"></script>"
+    },
+    {
+      "why": "a file named tern.min.js (the file name is exactly tern.js)",
+      "line": "<script src=\"tern.min.js\"></script>"
+    },
+    {
+      "why": "tern.js.map",
+      "line": "<script src=\"tern.js.map\"></script>"
+    },
+    {
+      "why": "tern-cli.js",
+      "line": "<script src=\"tern-cli.js\"></script>"
+    },
+    {
+      "why": "a commented-out tag",
+      "line": "<!-- <script src=\"tern.js\"></script> -->"
+    },
+    {
+      "why": "a tag inside a comment that the line does not close",
+      "line": "<!-- <script src=\"tern.js\"></script>"
+    },
+    {
+      "why": "defer: tern.js would not capture the note",
+      "line": "<script defer src=\"tern.js\"></script>"
+    },
+    {
+      "why": "async: tern.js would not capture the note",
+      "line": "<script src=\"tern.js\" async></script>"
+    },
+    {
+      "why": "async with a value",
+      "line": "<script src=\"tern.js\" async=\"\"></script>"
+    },
+    {
+      "why": "upper case DEFER",
+      "line": "<script src=\"tern.js\" DEFER></script>"
+    },
+    {
+      "why": "a module script",
+      "line": "<script type=\"module\" src=\"tern.js\"></script>"
+    },
+    {
+      "why": "a module script, unquoted",
+      "line": "<script type=module src=\"tern.js\"></script>"
+    },
+    {
+      "why": "a page written by tern build",
+      "line": "<script data-built src=\"tern.js\"></script>"
+    },
+    {
+      "why": "a page written by tern build, with formulas left",
+      "line": "<script data-built=\"math\" src=\"tern.js\" data-use=\"x.js\"></script>"
+    },
+    {
+      "why": "data-src is not src",
+      "line": "<script data-src=\"tern.js\"></script>"
+    },
+    {
+      "why": "not a script: a preload",
+      "line": "<link rel=\"preload\" href=\"tern.js\" as=\"script\">"
+    },
+    {
+      "why": "not a script: an image",
+      "line": "<img src=\"tern.js\">"
+    },
+    {
+      "why": "not a script: noscript",
+      "line": "<noscript src=\"tern.js\"></noscript>"
+    },
+    {
+      "why": "not a script: scripts",
+      "line": "<scripts src=\"tern.js\"></scripts>"
+    },
+    {
+      "why": "an escaped tag in text",
+      "line": "&lt;script src=\"tern.js\"&gt;&lt;/script&gt;"
+    },
+    {
+      "why": "prose",
+      "line": "Load tern.js with a script tag."
+    }
+  ]
+}
