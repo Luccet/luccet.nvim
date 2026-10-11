@@ -3,9 +3,9 @@
 -- page will: a numbered block's label at the end of its opener line, what
 -- each @reference reads as, equation numbers, and simple math as Unicode.
 -- With options.render.conceal, math with a Unicode form is drawn in place of
--- its source, display math's $$ hidden too, and a block's opener in place of
--- its syntax, its attributes and closer hidden; the source shows again while
--- the cursor is on it. The head stays folded but while the cursor is in it
+-- its source, display math's $$ hidden too, a block's opener in place of
+-- its syntax, its attributes and closer hidden, and an inline element as its
+-- content; the source shows again while the cursor is on it. The head stays folded but while the cursor is in it
 -- (tern.head). Each kind has its options.render flag.
 --   attach(buf)          draw now, and again on each User TernOutline
 --   command(args)        :TernRender [on|off|toggle], per buffer
@@ -33,6 +33,8 @@ local function highlights()
   api.nvim_set_hl(0, 'TernVirtId', { link = 'Identifier', default = true })
   api.nvim_set_hl(0, 'TernVirtVerbatim', { link = 'PreProc', default = true })
   api.nvim_set_hl(0, 'TernVerbatim', { link = 'ColorColumn', default = true })
+  api.nvim_set_hl(0, 'TernInline', { link = 'Special', default = true })
+  api.nvim_set_hl(0, 'TernInlineCode', { link = 'String', default = true })
 end
 
 -- tex.unicode by TeX source, after the note's macros (tex.expand); a note
@@ -425,6 +427,48 @@ local function block(lines, b, labels)
   return units, verbatim and { l - 1, last - 1 } or nil
 end
 
+-- Inline elements whose content the page shows in a code font.
+local CODELIKE = { kbd = true, code = true, samp = true }
+
+-- An inline element drawn as its content: `:name[` and `]` hidden, its
+-- attributes as their id; sub and sup as Unicode scripts when they have
+-- them, q between quotes, and one without content as ⟨name⟩. Returns the
+-- parts, as display() does, where it ends, and the range of the content
+-- left to show and its highlight; nil for an element over several lines, or
+-- a line that no longer holds it.
+local function element(lines, byte, i)
+  local line = type(i.name) == 'string' and lines[i.line]
+  local s, e = line and byte(i.line, i.col), line and byte(i.line, i['end'])
+  if not s or not e or e <= s then
+    return nil
+  end
+  local text, head = line:sub(s + 1, e), ':' .. i.name .. '['
+  local close = (text:match('()%b{}$') or #text + 1) - 1
+  if text:sub(1, #head) ~= head or close <= #head or text:sub(close, close) ~= ']' then
+    return nil
+  end
+  -- Its brackets pair up, besides escaped ones and those in code spans: an
+  -- element that ends on another line does not end here.
+  local content = text:sub(#head + 1, close - 1)
+  if content:gsub('\\.', ''):gsub('(`+).-%1', ''):gsub('%b[]', ''):find('[%[%]]') then
+    return nil
+  end
+  local row, cs, ce = i.line - 1, s + #head, s + close - 1
+  local id = ids(text:sub(close + 1), '') or {}
+  local script = (i.name == 'sub' or i.name == 'sup') and require('tern.tex').script(content, i.name)
+  if content == '' or script then
+    local shown = script and { script, 'TernInline' } or { '⟨' .. i.name .. '⟩', 'TernVirtName' }
+    return { { row, s, e, vim.list_extend({ shown }, id) } }, row, e
+  end
+  local quote = i.name == 'q'
+  local after = vim.list_extend(quote and { { '”', 'TernInline' } } or {}, id)
+  local parts = {
+    { row, s, cs, quote and { { '“', 'TernInline' } } or nil },
+    { row, ce, e, #after > 0 and after or nil },
+  }
+  return parts, row, e, { cs, ce, CODELIKE[i.name] and 'TernInlineCode' or 'TernInline' }
+end
+
 -- Draws the outline over the buffer, replacing what was drawn. A mark whose
 -- line no longer holds what the outline says (the outline lags while you
 -- type) is left out.
@@ -490,6 +534,16 @@ function M.draw(buf, outline)
       end
       if tint then
         mark(tint[1], 0, { end_row = tint[2], line_hl_group = 'TernVerbatim' })
+      end
+    end
+  end
+
+  for _, i in ipairs(opts.conceal and list(outline.inline) or {}) do
+    local parts, row, ecol, content = element(lines, byte, i)
+    if parts then
+      hide({}, parts, row, ecol)
+      if content then
+        mark(row, content[1], { end_col = content[2], hl_group = content[3] })
       end
     end
   end
