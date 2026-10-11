@@ -46,6 +46,17 @@ local function tinted(buf)
   return out
 end
 
+-- The buffer's highlighted ranges as { row, col, end_col, hl_group }.
+local function highlighted(buf)
+  local out = {}
+  for _, m in ipairs(api.nvim_buf_get_extmarks(buf, require('tern.render').ns, 0, -1, { details = true })) do
+    if m[4].hl_group and not m[4].virt_text then
+      out[#out + 1] = { m[2], m[3], m[4].end_col, m[4].hl_group }
+    end
+  end
+  return out
+end
+
 -- Moves the cursor and runs the autocommands the main loop would.
 local function go(row)
   api.nvim_win_set_cursor(0, { row, 0 })
@@ -516,6 +527,68 @@ return {
       T.eq(#concealed(buf), 6, 'every line hidden: $$, \\begin, the rows, \\end, "$$ {#eq-f}"')
       go(4)
       T.eq(marks(buf), { { 6, 0, '(2)', 'eol', 'TernVirtLabel' } }, 'the cursor in it: the source')
+    end)
+  end },
+
+  { 'inline elements show as their content, but on the cursor line', function(T)
+    local lines = {
+      'x', -- 1
+      'Press :kbd[Ctrl]+:kbd[S] 😀 :abbr[HTML]{title="a b" #ab}.', -- 2
+      'H :sub[2]O, x :sup[-1], :sup[*]{.c}, :q[so]{#q1} and :ruby[漢:rt[kan]].', -- 3
+      'Empty :wbr[] and :term[]{#t}, :kbd[`]`].', -- 4
+      'Multi :kbd[Ctrl', -- 5
+      'S] and :kbd[a', -- 6
+      'changed', -- 7
+    }
+    local buf = buffer(lines)
+    vim.wo.conceallevel = 2
+    -- The outline's entry for `text` on line l, in 1-based UTF-16 columns.
+    local function at(l, text, name)
+      local col = vim.str_utfindex(lines[l], 'utf-16', lines[l]:find(text, 1, true) - 1) + 1
+      return { line = l, col = col, ['end'] = col + vim.str_utfindex(text, 'utf-16'), name = name }
+    end
+    local o = empty()
+    o.inline = {
+      at(2, ':kbd[Ctrl]', 'kbd'), at(2, ':kbd[S]', 'kbd'), at(2, ':abbr[HTML]{title="a b" #ab}', 'abbr'),
+      at(3, ':sub[2]', 'sub'), at(3, ':sup[-1]', 'sup'), at(3, ':sup[*]{.c}', 'sup'), at(3, ':q[so]{#q1}', 'q'),
+      at(3, ':ruby[漢:rt[kan]]', 'ruby'), at(3, ':rt[kan]', 'rt'),
+      at(4, ':wbr[]', 'wbr'), at(4, ':term[]{#t}', 'term'), at(4, ':kbd[`]`]', 'kbd'),
+      { line = 5, col = 7, ['end'] = 3, name = 'kbd' }, -- over two lines: the end is on the next
+      at(6, ':kbd[a', 'kbd'), -- not closed there
+      { line = 7, col = 1, ['end'] = 8, name = 'kbd' }, -- a line that changed
+    }
+    local render = require('tern.render')
+    with_outlines({ [buf] = o }, function()
+      render.attach(buf)
+      local abbr = #'Press :kbd[Ctrl]+:kbd[S] 😀 :abbr[HTML]'
+      local closed = {
+        { 1, abbr + #'{title="a b" #ab}', '{#ab}', 'inline', 'TernVirtId' },
+        { 2, 9, '₂', 'inline', 'TernInline' },
+        { 2, 22, '⁻¹', 'inline', 'TernInline' },
+        { 2, 40, '“', 'inline', 'TernInline' }, -- q between quotes
+        { 2, 48, '”{#q1}', 'inline', 'TernInline,TernVirtId' },
+        { 3, 12, '⟨wbr⟩', 'inline', 'TernVirtName' }, -- no content: the name
+        { 3, 28, '⟨term⟩{#t}', 'inline', 'TernVirtName,TernVirtId' },
+      }
+      T.eq(marks(buf), closed, 'the cursor elsewhere')
+      T.eq(concealed(buf), {
+        { 1, 6, 1, 11 }, { 1, 15, 1, 16 }, { 1, 17, 1, 22 }, { 1, 23, 1, 24 }, { 1, 30, 1, 36 }, { 1, 40, 1, abbr + 17 },
+        { 2, 2, 2, 9 }, { 2, 14, 2, 22 }, { 2, 24, 2, 29 }, { 2, 30, 2, 35 }, { 2, 37, 2, 40 }, { 2, 42, 2, 48 },
+        { 2, 53, 2, 59 }, { 2, 62, 2, 66 }, { 2, 69, 2, 70 }, { 2, 70, 2, 71 }, -- ruby and its rt
+        { 3, 6, 3, 12 }, { 3, 17, 3, 28 }, { 3, 30, 3, 35 }, { 3, 38, 3, 39 },
+      }, ':name[ and ]{…} hidden; sub, sup and empty ones whole')
+      T.eq(highlighted(buf), {
+        { 1, 11, 15, 'TernInlineCode' }, { 1, 22, 23, 'TernInlineCode' }, { 1, 36, 40, 'TernInline' },
+        { 2, 29, 30, 'TernInline' }, { 2, 40, 42, 'TernInline' }, { 2, 59, 70, 'TernInline' }, { 2, 66, 69, 'TernInline' },
+        { 3, 35, 38, 'TernInlineCode' },
+      }, 'the content left to show, kbd as code; :sup[*] has no superscript: as an element')
+      go(3)
+      T.eq(marks(buf), { closed[1], closed[6], closed[7] }, 'the cursor on a line: its source')
+      T.eq(#concealed(buf), 10, 'the other lines still hidden')
+      require('tern').setup({ render = { conceal = false } })
+      render.draw(buf, o)
+      T.eq({ marks(buf), concealed(buf), highlighted(buf) }, { {}, {}, {} }, 'render.conceal off: nothing')
+      require('tern').setup()
     end)
   end },
 

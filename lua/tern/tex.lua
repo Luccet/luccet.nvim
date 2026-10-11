@@ -9,6 +9,8 @@
 --   \name -> { n = its number of arguments, body }
 --   expand(src, macros) -> src with the macros expanded, or nil when that
 --   fails (an argument missing, an expansion without end)
+--   script(text, 'sup' | 'sub') -> text in Unicode superscripts or
+--   subscripts, or nil when a character has none
 -- It reads a small subset of KaTeX: Greek and symbols, function names,
 -- scripts Unicode has (x^2, x_i, x^{-1}), \mathbb and the other alphabets,
 -- \frac and \sqrt written on one line, accents on one letter, \text,
@@ -503,6 +505,18 @@ end
 
 local function convert(src)
   return render((parse_list(src, 1, nil)))
+end
+
+function M.script(text, kind)
+  local map = kind == 'sup' and SUP or SUB
+  local out = {}
+  for ch in (type(text) == 'string' and text or ''):gmatch(CHAR) do
+    out[#out + 1] = map[ch == '-' and '−' or ch]
+    if not out[#out] then
+      return nil
+    end
+  end
+  return #out > 0 and table.concat(out) or nil
 end
 
 function M.unicode(src)

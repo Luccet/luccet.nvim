@@ -357,4 +357,79 @@ return {
     T.eq(lsp.client(buf), nil, 'no client')
     T.eq(vim.wo.foldexpr, "v:lua.require'tern.lsp'.foldexpr(v:lnum)", 'folds by headings')
   end) },
+
+  { ':TernMove moves a note and fixes the links to it and in it; FROM may be a folder', clean(function(T)
+    local root = T.tern_root()
+    if not root then
+      print('    (skipped: no Tern checkout; set $TERN_ROOT)')
+      return
+    end
+    local dir = vim.fs.normalize(T.tmpdir())
+    assert(vim.uv.fs_symlink(vim.fs.normalize(vim.fn.fnamemodify(root, ':p')) .. '/tern.js', dir .. '/tern.js'))
+    local function read(path)
+      local f = io.open(path, 'rb')
+      if not f then
+        return nil
+      end
+      local text = f:read('a')
+      f:close()
+      return text
+    end
+    local HEAD = '<!doctype html><meta charset="utf-8"><script src="%s"></script>'
+    local MAPS = HEAD:format('../tern.js') .. '\n# Maps\n\n![k](img/k.svg)\n\nBack to [the contents](index.html).\n'
+    -- CRLF and no final line break: kept, byte for byte.
+    local INDEX = HEAD:format('../tern.js') .. '\r\n# Notes\r\n\r\n- [Maps](maps.html)\r\n- [Top](maps.html#top)'
+    local BASIS = HEAD:format('../../tern.js') .. '\n# Bases\n\nSee [maps](../maps.html).\n'
+    local DRAFT = HEAD:format('../tern.js') .. '\n# Draft\n'
+    local maps = T.write(dir .. '/notes/maps.html', MAPS)
+    T.write(dir .. '/notes/img/k.svg', '<svg xmlns="http://www.w3.org/2000/svg"/>')
+    local index = T.write(dir .. '/notes/index.html', INDEX)
+    local basis = T.write(dir .. '/notes/vectors/basis.html', BASIS)
+    local draft = T.write(dir .. '/notes/draft.html', DRAFT)
+    vim.cmd.edit(basis)
+    local basis_buf = vim.api.nvim_get_current_buf()
+    vim.cmd.edit(draft)
+    local draft_buf = vim.api.nvim_get_current_buf()
+    vim.api.nvim_buf_set_lines(draft_buf, -1, -1, true, { '', '[maps](maps.html), unsaved' })
+    vim.cmd.edit(maps)
+    local buf = vim.api.nvim_get_current_buf()
+    T.wait(5000, function()
+      return lsp.client(buf) and lsp.outline(buf) and lsp.client(draft_buf)
+    end, 'the client')
+
+    local notices = {}
+    local notify = vim.notify
+    vim.notify = function(msg, level)
+      notices[#notices + 1] = { msg = msg, level = level }
+    end
+    local ok, err = pcall(function()
+      vim.cmd('TernMove ' .. dir .. '/notes/linear/')
+      local moved = dir .. '/notes/linear/maps.html'
+      T.eq(read(maps), nil, 'the old file is gone')
+      T.eq(read(moved), MAPS:gsub('%.%./tern', '../../tern'):gsub('img/', '../img/'):gsub('%(index', '(../index'), 'its own links, from its new folder')
+      T.eq(vim.api.nvim_get_current_buf(), buf, 'the same buffer')
+      T.eq(vim.fs.normalize(vim.api.nvim_buf_get_name(buf)), moved, 'renamed')
+      T.eq(vim.bo[buf].modified, false, 'written')
+      T.eq(read(index), (INDEX:gsub('%(maps', '(linear/maps')), 'a file no buffer shows: edited, CRLF and all')
+      T.eq(vim.fn.bufexists(index), 0, 'and no buffer left for it')
+      T.eq(read(basis), (BASIS:gsub('%.%./maps', '../linear/maps')), 'an open note: written')
+      T.eq(vim.bo[basis_buf].modified, false, 'and not modified')
+      T.eq(vim.api.nvim_buf_get_lines(draft_buf, -2, -1, true)[1], '[maps](linear/maps.html), unsaved', 'unsaved changes: edited')
+      T.eq({ vim.bo[draft_buf].modified, read(draft) }, { true, DRAFT }, 'and not written')
+      local n = notices[#notices]
+      T.ok(n.msg:find('linear/maps.html; 7 links in 4 notes', 1, true), n.msg)
+      T.ok(n.msg:find('as they have unsaved changes: ' .. vim.fn.fnamemodify(draft, ':~:.'), 1, true), n.msg)
+      T.eq(n.level, vim.log.levels.WARN, 'a warning: a buffer was not written')
+
+      -- A folder, as FROM: the image's link in the moved note.
+      vim.cmd(('TernMove %s/notes/img %s/notes/pictures'):format(dir, dir))
+      T.ok(vim.uv.fs_stat(dir .. '/notes/pictures/k.svg') and not vim.uv.fs_stat(dir .. '/notes/img'), 'the folder moved')
+      T.ok(read(moved):find('![k](../pictures/k.svg)', 1, true), read(moved))
+      T.eq(vim.bo[buf].modified, false, 'written')
+      T.ok(notices[#notices].msg:find('pictures; 1 link in 1 note$'), notices[#notices].msg)
+      T.eq(notices[#notices].level, vim.log.levels.INFO, 'info')
+    end)
+    vim.notify = notify
+    assert(ok, err)
+  end) },
 }

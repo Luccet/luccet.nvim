@@ -10,9 +10,9 @@ tern.nvim is a client of `tern lsp`, Tern's language server. It has no grammar o
 
 - **Detection.** An `.html` file that loads `tern.js` gets the filetype `tern`. This is the engine's own rule, written in Lua, so it needs no Node.
 - **Language server.** Diagnostics as you type, completion of element names, closers and ids, go to definition, references, rename, hover, document symbols and folding. They work through Neovim's own LSP mappings (`grr`, `grn`, `K`, `gO`, `CTRL-]`, `]d` …).
-- **Virtual text** drawn from the server's outline. It shows a numbered block's label ("Theorem 1"), what each `@reference` reads as, equation numbers, and simple TeX as Unicode. Math reads as Unicode in place of its source (`$\mathbb{R}^n$` → ℝⁿ), inline and display, with the note's `:::macros` expanded, `$$` hidden, and `align`, `cases` and matrices shown row by row. A block's opener reads as its label and title (`:::theorem[Main]{#t1 .big}` → Theorem 1 Main {#t1}), and its closer is hidden. The head (doctype, scripts, styles) folds into one line saying what it holds. The source shows again while the cursor is on it.
+- **Virtual text** drawn from the server's outline. It shows a numbered block's label ("Theorem 1"), what each `@reference` reads as, equation numbers, and simple TeX as Unicode. Math reads as Unicode in place of its source (`$\mathbb{R}^n$` → ℝⁿ), inline and display, with the note's `:::macros` expanded, `$$` hidden, and `align`, `cases` and matrices shown row by row. A block's opener reads as its label and title (`:::theorem[Main]{#t1 .big}` → Theorem 1 Main {#t1}), and its closer is hidden; an inline element reads as its content (`:kbd[Ctrl]` → Ctrl). The head (doctype, scripts, styles) folds into one line saying what it holds. The source shows again while the cursor is on it.
 - **Live preview.** `:TernPreview` serves the note's project from inside Neovim and refreshes the browser each time you write. The note re-renders in place and keeps its scroll position. The server listens on 127.0.0.1 and refuses requests from other sites.
-- **Commands.** `:TernInit` writes a note's first line, `:TernCheck` sends `tern check` to the quickfix list, and `:TernBuild` runs `tern build`.
+- **Commands.** `:TernInit` writes a note's first line, `:TernCheck` sends `tern check` to the quickfix list, `:TernBuild` runs `tern build`, and `:TernMove` moves a file and fixes the links to it and in it.
 - **Highlighting** for the whole syntax, with fenced code highlighted in its language.
 - **`:checkhealth tern`** shows what the plugin found and why.
 - **Without Node**, detection, highlighting, folding by headings, `:TernInit` and the preview still work. The plugin says once why the server cannot start.
@@ -91,7 +91,7 @@ require('tern').setup({
     labels = true, -- "Theorem 1" beside a numbered block's opener
     refs = true, -- what an @reference will read as
     math = true, -- simple TeX as Unicode, and equation numbers
-    conceal = true, -- math and block syntax drawn in place of the source, but under the cursor
+    conceal = true, -- math, block and inline element syntax drawn in place of the source, but under the cursor
   },
   -- :TernPreview, a local server that refreshes the browser on save.
   preview = {
@@ -112,6 +112,7 @@ Fenced code is highlighted in its language for the syntaxes in `g:tern_fence_lan
 | `:TernInit [SRC]` | Writes the canonical first line, which loads `tern.js` from SRC or from the nearest `tern.js`, at the top of the buffer. |
 | `:TernCheck [PATH…]` | Runs `tern check` on the paths, or on the buffer's file, and puts the diagnostics in the quickfix list. |
 | `:TernBuild [OUT]` | Runs `tern build` on the buffer's file. OUT defaults to `NAME.built.html` beside the note. |
+| `:TernMove [FROM] TO` | Moves the buffer's file, or FROM (a file or a folder), to TO, and fixes the links to it and in it, as `tern mv` does. Unsaved changes count. Needs the language server. |
 | `:TernPreview` | Serves the note and opens it in a browser. The page refreshes on each write. |
 | `:TernPreviewStop` | Stops the preview server. |
 | `:TernRender [on\|off\|toggle]` | Shows or hides the virtual text in the buffer. |

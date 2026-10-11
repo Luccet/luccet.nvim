@@ -225,9 +225,10 @@ render.math                                          *tern-option-render.math*
 
 render.conceal                                    *tern-option-render.conceal*
     Boolean. Default: true.
-    Draws math with a Unicode form in place of its source, and a block's
+    Draws math with a Unicode form in place of its source, a block's
     opener in place of its syntax, with its other attributes and its
-    closer hidden (|tern-render|); keeps the head folded
+    closer hidden, and an inline element as its content (|tern-render|);
+    keeps the head folded
     (|tern-render-head|). The source shows again while the cursor is on
     it. The ftplugin sets 'conceallevel' to 2 in the note's window. With
     false, nothing is hidden: the Unicode form follows the source, labels
@@ -316,6 +317,32 @@ preview.browser                                  *tern-option-preview.browser*
     so. The message names the file written, says how many diagnostics the
     note has (|:TernCheck| lists them), and repeats tern build's warnings.
 
+:TernMove [{from}] {to}                                            *:TernMove*
+    Moves the current buffer's file, or {from}, to {to}, and fixes the
+    links: those to it from other notes, and its own, which now start from
+    its new folder. These are the edits `tern mv` makes. The language server
+    works them out (workspace/willRenameFiles), so unsaved changes in open
+    notes count. {from} may be any file, or a folder. A {to} that is a
+    folder, or ends in /, receives {from} under its own name. Missing
+    folders on the way are created. %, #, ~ and $VAR at the start of a path
+    are expanded. >vim
+        :TernMove notes/linear/
+        :TernMove notes/img notes/pictures
+<
+    The server reads the notes under its root (|tern-lsp|) and the open
+    buffers. The buffer of a moved file is renamed and written at its new
+    path, unsaved changes included, as |vim.lsp.util.rename()| does. Other
+    open buffers get their edits and are written; one with unsaved changes
+    gets them but is not written, and the message names it. A file that no
+    buffer shows is edited without opening it as a note: no autocommands
+    run, and its bytes stay as they were but for the edits. The message
+    counts the links fixed.
+
+    Nothing moves when {to} exists, when a folder would move into itself,
+    or when no server runs for the file. A note with a <base href> keeps its
+    links, and the server's message names it. Files that are not notes are
+    not edited; `tern mv --dry-run` lists those that name a moved file.
+
 :TernPreview                                                    *:TernPreview*
     Serves the current buffer's file over HTTP, prints its URL and, with
     |tern-option-preview.open|, opens it in a browser. The page refreshes
@@ -403,6 +430,7 @@ Rename                                                           *tern-rename*
     adds `{#new}` to the heading line. The server refuses an id that `@`
     could not reach, an id the note already uses, and the ids that come from
     footnote labels, and it says why. Use |grn| (|vim.lsp.buf.rename()|).
+    To rename or move a file, with its links, use |:TernMove|.
 
 Hover                                                             *tern-hover*
     |K| (|vim.lsp.buf.hover()|) on an id, a reference or a declaration shows
@@ -492,8 +520,9 @@ unloaded.
 
 The plugin draws text from the outline (|tern-outline|) beside the source,
 so that the source shows what the page will show. With
-|tern-option-render.conceal|, math and the syntax of blocks are drawn in
-place of their source, which shows again while the cursor is on it. Each
+|tern-option-render.conceal|, math and the syntax of blocks and inline
+elements are drawn in place of their source, which shows again while the
+cursor is on it. Each
 kind has its own flag:
 
 Labels (|tern-option-render.labels|)
@@ -567,6 +596,21 @@ Blocks (|tern-option-render.conceal|)
     for the label, |hl-TernVirtName| for the name, |hl-TernVirtVerbatim|
     for a verbatim block's name, |hl-TernVerbatim| for its tint,
     |hl-TernVirtId| for the id.
+
+Inline elements (|tern-option-render.conceal|)
+    An inline element as its content: `:name[` and `]` hidden, and its
+    attributes as their id. The content is highlighted, kbd, code and samp
+    as code. sub and sup read as Unicode scripts when every character has
+    one, q between quotes, and an element without content as its name in
+    angle brackets:
+        Press :kbd[Ctrl]+:kbd[S].          Press Ctrl+S.
+        x :sup[-1] and :q[so]{#q1}         x ⁻¹ and “so”{#q1}
+        Super :wbr[]califragilistic        Super ⟨wbr⟩califragilistic
+    An element over several lines keeps its source. A label that the
+    vocabulary gives an inline element is not drawn: the outline does not
+    hold it. On the cursor line the source shows. Highlights:
+    |hl-TernInline| and |hl-TernInlineCode| for the content,
+    |hl-TernVirtName| for the name, |hl-TernVirtId| for the id.
 
 The head (|tern-option-render.conceal|)                     *tern-render-head*
     The head, from the doctype to the tern.js line, with any window.TERN
@@ -674,8 +718,8 @@ TernVirtRef                                                   *hl-TernVirtRef*
 TernVirtMath                                                 *hl-TernVirtMath*
     Math as Unicode. Default: links to Comment.
 TernVirtName                                                 *hl-TernVirtName*
-    The name of a block without a label, in place of its opener. Default:
-    links to Comment.
+    The name of a block without a label, in place of its opener, and of an
+    inline element without content. Default: links to Comment.
 TernVirtId                                                     *hl-TernVirtId*
     An id in place of the attributes that hold it. Default: links to
     Identifier.
@@ -685,6 +729,11 @@ TernVirtVerbatim                                         *hl-TernVirtVerbatim*
 TernVerbatim                                                 *hl-TernVerbatim*
     The background of a block with a verbatim body, over its whole lines.
     Default: links to ColorColumn.
+TernInline                                                     *hl-TernInline*
+    The content of an inline element, and what is drawn for it: scripts,
+    quotes. Default: links to Special.
+TernInlineCode                                             *hl-TernInlineCode*
+    The content of a kbd, code or samp element. Default: links to String.
 
 They are defined as defaults, so a colorscheme or your own setting wins, and
 they come back after |:colorscheme|. For example: >lua
@@ -942,9 +991,9 @@ These still work:
 • `:checkhealth tern`.
 
 These do not: diagnostics, completion, definition, references, rename,
-hover, symbols, the server's folds, and the virtual text, which is drawn
-from the server's outline. |:TernCheck| and |:TernBuild| say why they cannot
-run.
+hover, symbols, the server's folds, |:TernMove|, and the virtual text, which
+is drawn from the server's outline. |:TernCheck| and |:TernBuild| say why
+they cannot run.
 
 With |tern-option-lsp| false, notes behave the same, without the notice, and
 |:TernCheck| and |:TernBuild| still work when Node and the CLI are there.

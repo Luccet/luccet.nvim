@@ -18,7 +18,7 @@ M.defaults = {
     labels = true, -- "Theorem 1" beside a numbered block's opener
     refs = true, -- what an @reference will read as
     math = true, -- simple TeX shown as Unicode beside the formula
-    conceal = true, -- math and block syntax drawn in place of the source, but under the cursor
+    conceal = true, -- math, block and inline element syntax drawn in place of the source, but under the cursor
   },
   -- :TernPreview, a local server that reloads the browser on save.
   preview = {
