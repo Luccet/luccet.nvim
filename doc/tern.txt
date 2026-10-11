@@ -317,6 +317,32 @@ preview.browser                                  *tern-option-preview.browser*
     so. The message names the file written, says how many diagnostics the
     note has (|:TernCheck| lists them), and repeats tern build's warnings.
 
+:TernMove [{from}] {to}                                            *:TernMove*
+    Moves the current buffer's file, or {from}, to {to}, and fixes the
+    links: those to it from other notes, and its own, which now start from
+    its new folder. These are the edits `tern mv` makes. The language server
+    works them out (workspace/willRenameFiles), so unsaved changes in open
+    notes count. {from} may be any file, or a folder. A {to} that is a
+    folder, or ends in /, receives {from} under its own name. Missing
+    folders on the way are created. %, #, ~ and $VAR at the start of a path
+    are expanded. >vim
+        :TernMove notes/linear/
+        :TernMove notes/img notes/pictures
+<
+    The server reads the notes under its root (|tern-lsp|) and the open
+    buffers. The buffer of a moved file is renamed and written at its new
+    path, unsaved changes included, as |vim.lsp.util.rename()| does. Other
+    open buffers get their edits and are written; one with unsaved changes
+    gets them but is not written, and the message names it. A file that no
+    buffer shows is edited without opening it as a note: no autocommands
+    run, and its bytes stay as they were but for the edits. The message
+    counts the links fixed.
+
+    Nothing moves when {to} exists, when a folder would move into itself,
+    or when no server runs for the file. A note with a <base href> keeps its
+    links, and the server's message names it. Files that are not notes are
+    not edited; `tern mv --dry-run` lists those that name a moved file.
+
 :TernPreview                                                    *:TernPreview*
     Serves the current buffer's file over HTTP, prints its URL and, with
     |tern-option-preview.open|, opens it in a browser. The page refreshes
@@ -404,6 +430,7 @@ Rename                                                           *tern-rename*
     adds `{#new}` to the heading line. The server refuses an id that `@`
     could not reach, an id the note already uses, and the ids that come from
     footnote labels, and it says why. Use |grn| (|vim.lsp.buf.rename()|).
+    To rename or move a file, with its links, use |:TernMove|.
 
 Hover                                                             *tern-hover*
     |K| (|vim.lsp.buf.hover()|) on an id, a reference or a declaration shows
@@ -964,9 +991,9 @@ These still work:
 • `:checkhealth tern`.
 
 These do not: diagnostics, completion, definition, references, rename,
-hover, symbols, the server's folds, and the virtual text, which is drawn
-from the server's outline. |:TernCheck| and |:TernBuild| say why they cannot
-run.
+hover, symbols, the server's folds, |:TernMove|, and the virtual text, which
+is drawn from the server's outline. |:TernCheck| and |:TernBuild| say why
+they cannot run.
 
 With |tern-option-lsp| false, notes behave the same, without the notice, and
 |:TernCheck| and |:TernBuild| still work when Node and the CLI are there.

@@ -1,7 +1,7 @@
 -- SPDX-License-Identifier: MIT
--- :TernInit, :TernCheck and :TernBuild. The language server is off here
--- (lsp = false); :TernCheck and :TernBuild run the real CLI, found next to a
--- link to the Tern checkout's tern.js.
+-- :TernInit, :TernCheck, :TernBuild, and :TernMove's refusals. The language
+-- server is off here (lsp = false); :TernCheck and :TernBuild run the real
+-- CLI, found next to a link to the Tern checkout's tern.js.
 local FIRST = '<!doctype html><meta charset="utf-8"><script src="%s"></script>'
 
 -- Runs fn(T, notices) with the server off, $TERN_CLI unset and vim.notify
@@ -179,5 +179,36 @@ return {
     end, 'the second report')
     T.ok(vim.uv.fs_stat(dir .. '/dist/note.html'), 'into a directory')
     T.eq(notices[2].level, vim.log.levels.WARN, 'warns that relative URLs moved')
+  end) },
+
+  { ':TernMove refuses, and moves nothing, when it cannot fix the links', scoped(function(T, notices)
+    local dir = vim.fs.normalize(T.tmpdir())
+    local a = T.write(dir .. '/notes/a.html', FIRST:format('../tern.js') .. '\n# A\n')
+    local b = T.write(dir .. '/notes/b.html', FIRST:format('../tern.js') .. '\n# B\n')
+    local function last()
+      return notices[#notices].msg
+    end
+    vim.cmd.enew()
+    vim.cmd('TernMove ' .. dir .. '/x.html')
+    T.eq(last(), 'tern: this buffer has no file to move', 'an unnamed buffer')
+    vim.cmd.edit(dir .. '/notes/new.html')
+    vim.cmd('TernMove ' .. dir .. '/x.html')
+    T.ok(last():find('new.html does not exist; write it first', 1, true), last())
+    vim.cmd.edit(a)
+    vim.cmd('TernMove one two three')
+    T.eq(last(), 'tern: :TernMove [FROM] TO', 'three arguments')
+    vim.cmd('TernMove ' .. b)
+    T.ok(last():find('b.html exists; move or remove it first', 1, true), last())
+    vim.cmd('TernMove ' .. a)
+    T.ok(last():find('a.html is already there', 1, true), last())
+    vim.cmd(('TernMove %s/notes %s/notes/old'):format(dir, dir))
+    T.ok(last():find('cannot move .*notes into itself'), last())
+    vim.cmd('TernMove ' .. dir .. '/c.html')
+    T.ok(last():find('needs the language server, and none is running for', 1, true), last())
+    for _, n in ipairs(notices) do
+      T.eq(n.level, vim.log.levels.ERROR, n.msg)
+    end
+    T.ok(vim.uv.fs_stat(a) and vim.uv.fs_stat(b) and not vim.uv.fs_stat(dir .. '/c.html'), 'nothing moved')
+    T.eq(vim.fs.normalize(vim.api.nvim_buf_get_name(0)), a, 'the buffer keeps its name')
   end) },
 }

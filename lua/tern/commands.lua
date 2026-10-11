@@ -1,11 +1,14 @@
 -- SPDX-License-Identifier: MIT
--- :TernInit, :TernCheck and :TernBuild. Each takes the user command's args.
+-- :TernInit, :TernCheck, :TernBuild and :TernMove. Each takes the user
+-- command's args.
 --   init(args)   write the canonical first line at the top of the buffer, as
 --                `tern new` writes it (cli/commands.js newNote)
 --   check(args)  `tern check --json` on the paths, or the buffer's file, into
 --                the quickfix list
 --   build(args)  `tern build FILE -o OUT`; OUT defaults to NAME.built.html
 --                beside the note, so its relative URLs still resolve
+--   move(args)   move the buffer's file, or FROM, to TO, with the link edits
+--                the server's workspace/willRenameFiles gives (tern mv's)
 local M = {}
 
 local INFO, WARN, ERROR = vim.log.levels.INFO, vim.log.levels.WARN, vim.log.levels.ERROR
@@ -281,6 +284,162 @@ function M.build(args)
   if reason then
     say('tern: cannot run tern build: ' .. reason, ERROR)
   end
+end
+
+-- ---------------------------------------------------------------- :TernMove
+
+local function shown(p)
+  return vim.fn.fnamemodify(p, ':~:.')
+end
+
+local function plural(n, word)
+  return ('%d %s%s'):format(n, word, n == 1 and '' or 's')
+end
+
+-- The loaded buffer of a file, or nil.
+local function loaded(path)
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) and file_of(b) == path then
+      return b
+    end
+  end
+end
+
+-- The tern client whose root holds path, the buffer's first; else the
+-- buffer's. One client only: two would edit a note twice.
+local function client_for(buf, path)
+  local own = require('tern.lsp').client(buf)
+  local list = vim.lsp.get_clients({ name = 'tern' })
+  if own then
+    table.insert(list, 1, own)
+  end
+  for _, c in ipairs(list) do
+    local root = c.root_dir and vim.fs.normalize(c.root_dir)
+    if root and (path == root or vim.startswith(path, root .. '/')) then
+      return c
+    end
+  end
+  return own
+end
+
+-- Edits a file no buffer shows, in a buffer that runs no autocommands (no
+-- filetype, server, or format on save) and keeps the file's bytes but for
+-- the edits; then the buffer goes, or unloads if it was there before.
+local function edit_file(path, edits, encoding)
+  local existed = vim.fn.bufexists(path) == 1
+  local b = vim.fn.bufadd(path)
+  local listed = vim.bo[b].buflisted
+  vim.bo[b].swapfile = false
+  vim.cmd(('noautocmd call bufload(%d)'):format(b))
+  local ok, err = pcall(function()
+    vim.bo[b].fixendofline = false
+    vim.lsp.util.apply_text_edits(edits, b, encoding)
+    vim.api.nvim_buf_call(b, function()
+      vim.cmd('silent noautocmd write')
+    end)
+  end)
+  if existed then
+    vim.bo[b].buflisted = listed
+    vim.cmd(('silent! noautocmd %dbunload!'):format(b))
+  else
+    vim.cmd(('silent! noautocmd %dbwipeout!'):format(b))
+  end
+  if not ok then
+    error(err, 0)
+  end
+end
+
+-- The server's edits are for the files where they are; the files move
+-- first, as tern mv does, so a move that fails changes nothing, and each
+-- edit is made at the file's new path. A loaded buffer gets its edits and
+-- is written, unless it had unsaved changes; vim.lsp.util.rename writes a
+-- moved buffer at its new path.
+function M.move(args)
+  local buf = vim.api.nvim_get_current_buf()
+  local fargs = args and args.fargs or {}
+  if #fargs < 1 or #fargs > 2 then
+    return say('tern: :TernMove [FROM] TO', ERROR)
+  end
+  local from = #fargs == 2 and vim.fs.normalize(vim.fn.fnamemodify(expand(fargs[1]), ':p')) or file_of(buf)
+  if not from then
+    return say('tern: this buffer has no file to move', ERROR)
+  end
+  local st = vim.uv.fs_stat(from)
+  if not st then
+    return say(('tern: %s does not exist%s'):format(shown(from), #fargs == 1 and '; write it first' or ''), ERROR)
+  end
+  local arg = expand(fargs[#fargs])
+  local to = vim.fs.normalize(vim.fn.fnamemodify(arg, ':p'))
+  if arg:match('[/\\]$') or vim.fn.isdirectory(to) == 1 then
+    to = to .. '/' .. vim.fs.basename(from)
+  end
+  local there = vim.uv.fs_stat(to)
+  local same = there and there.ino == st.ino and there.dev == st.dev -- a change of case, on a disk that ignores case
+  if from == to then
+    return say(('tern: %s is already there'):format(shown(from)), ERROR)
+  elseif vim.startswith(to, from .. '/') then
+    return say(('tern: cannot move %s into itself'):format(shown(from)), ERROR)
+  elseif there and not same then
+    return say(('tern: %s exists; move or remove it first'):format(shown(to)), ERROR)
+  end
+  local client = client_for(buf, from)
+  if not client then
+    return say(('tern: :TernMove needs the language server, and none is running for %s; open a note there first'):format(shown(from)), ERROR)
+  end
+  if not vim.tbl_get(client.server_capabilities or {}, 'workspace', 'fileOperations', 'willRename') then
+    return say('tern: this tern lsp does not fix links on a move (workspace/willRenameFiles); update Tern', ERROR)
+  end
+
+  local files = { { oldUri = vim.uri_from_fname(from), newUri = vim.uri_from_fname(to) } }
+  local res, why = client:request_sync('workspace/willRenameFiles', { files = files }, 10000)
+  if not res or res.err then
+    return say(('tern: the language server gave no edits (%s); nothing was moved'):format(res and res.err.message or why or 'no answer'), ERROR)
+  end
+  local ok, err = pcall(vim.lsp.util.rename, from, to, { overwrite = same })
+  if not ok or not vim.uv.fs_stat(to) or (not same and vim.uv.fs_stat(from)) then
+    return say(('tern: cannot move %s%s; nothing was changed'):format(shown(from), ok and '' or ': ' .. tostring(err)), ERROR)
+  end
+
+  local function moved(p)
+    if p == from or vim.startswith(p, from .. '/') then
+      return to .. p:sub(#from + 1)
+    end
+    return p
+  end
+  local links, notes, unsaved, failed = 0, 0, {}, {}
+  for uri, edits in pairs(res.result and res.result.changes or {}) do
+    local path = moved(vim.fs.normalize(vim.uri_to_fname(uri)))
+    local done, e = pcall(function()
+      local b = loaded(path)
+      if not b then
+        return edit_file(path, edits, client.offset_encoding)
+      end
+      local dirty = vim.bo[b].modified
+      vim.lsp.util.apply_text_edits(edits, b, client.offset_encoding)
+      if dirty then
+        unsaved[#unsaved + 1] = shown(path)
+      else
+        vim.api.nvim_buf_call(b, function()
+          vim.cmd('silent update')
+        end)
+      end
+    end)
+    if done then
+      links, notes = links + #edits, notes + 1
+    else
+      failed[#failed + 1] = ('%s (%s)'):format(shown(path), tostring(e))
+    end
+  end
+  client:notify('workspace/didRenameFiles', { files = files })
+
+  local msg = { ('tern: moved %s → %s; %s in %s'):format(shown(from), shown(to), plural(links, 'link'), plural(notes, 'note')) }
+  if #unsaved > 0 then
+    msg[#msg + 1] = ('edited but not written, as they have unsaved changes: %s'):format(table.concat(unsaved, ', '))
+  end
+  if #failed > 0 then
+    msg[#msg + 1] = ('not edited: %s'):format(table.concat(failed, ', '))
+  end
+  say(table.concat(msg, '\n'), (#unsaved > 0 or #failed > 0) and WARN or INFO)
 end
 
 return M
