@@ -5,6 +5,8 @@
 -- but while the cursor is in it.
 --   lines(buf)     -> the number of lines in the head, or nil (not a note)
 --   summary(buf)   -> virtual text chunks: ⟨head⟩, then what the head holds
+--   macros(buf)    -> the macros of window.TERN.katex.macros, as
+--                     tern.tex.macros returns them
 --   foldtext()     -> 'foldtext' for notes: the summary on the head's fold,
 --                     Neovim's own on the others
 local M = {}
@@ -65,6 +67,61 @@ function M.summary(buf)
     chunks[2] = { ' ' .. rest, 'TernVirtName' }
   end
   return chunks
+end
+
+-- A JavaScript string literal at s[i]: its value and the index after it.
+local function literal(s, i)
+  local q = s:sub(i, i)
+  if q ~= "'" and q ~= '"' then
+    return nil
+  end
+  local out, k = {}, i + 1
+  while k <= #s do
+    local c = s:sub(k, k)
+    if c == q then
+      return table.concat(out), k + 1
+    elseif c == '\\' then
+      local d = s:sub(k + 1, k + 1)
+      out[#out + 1] = ({ n = '\n', t = '\t' })[d] or d
+      k = k + 2
+    elseif c == '\n' then
+      return nil
+    else
+      out[#out + 1] = c
+      k = k + 1
+    end
+  end
+end
+
+-- KaTeX's macros option: `'\\name': 'body'` pairs; a body's arguments are
+-- the highest #n in it. Reading stops at the first value that is not a
+-- string literal.
+function M.macros(buf)
+  local n = M.lines(buf)
+  local out = {}
+  if not n then
+    return out
+  end
+  local text = table.concat(api.nvim_buf_get_lines(buf, 0, n, false), '\n')
+  local i = text:match('katex%s*:.-macros%s*:%s*(){')
+  while i do
+    i = text:match('^[%s,]*()', i + (text:sub(i, i) == '{' and 1 or 0))
+    local name, value
+    name, i = literal(text, i)
+    i = name and text:match('^%s*:%s*()', i)
+    value, i = literal(text, i or 0)
+    if not value then
+      break
+    end
+    if name:match('^\\') then
+      local args = 0
+      for d in value:gmatch('#(%d)') do
+        args = math.max(args, tonumber(d))
+      end
+      out[name] = { n = args, body = value }
+    end
+  end
+  return out
 end
 
 function M.foldtext()

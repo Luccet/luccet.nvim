@@ -35,9 +35,14 @@ local function highlights()
   api.nvim_set_hl(0, 'TernVerbatim', { link = 'ColorColumn', default = true })
 end
 
--- tex.unicode by TeX source; a note repeats its formulas.
+-- tex.unicode by TeX source, after the note's macros (tex.expand); a note
+-- repeats its formulas.
 local cache, cached = {}, 0
-local function unicode(tex)
+local function unicode(tex, macros)
+  tex = require('tern.tex').expand(tex, macros)
+  if not tex then
+    return nil
+  end
   local hit = cache[tex]
   if hit == nil then
     if cached > 4096 then
@@ -200,12 +205,19 @@ local function attrs(rest)
 end
 
 -- The Unicode form of display math TeX lines, line by line (tern.tex.lines).
-local function rows(tex)
+local function rows(tex, macros)
   if #tex == 1 then
-    local u = unicode(tex[1])
+    local u = unicode(tex[1], macros)
     return u and { u }
   end
-  return require('tern.tex').lines(tex)
+  local expanded = {}
+  for i, l in ipairs(tex) do
+    expanded[i] = require('tern.tex').expand(l, macros)
+    if not expanded[i] then
+      return nil
+    end
+  end
+  return require('tern.tex').lines(expanded)
 end
 
 -- How display math m can be drawn in place: `$$ TeX $$` on one line; or a
@@ -214,11 +226,11 @@ end
 -- parts to hide, { row, start, end, chunks } (0-based), where the formula
 -- ends (row, col), and its Unicode form when the TeX is one line; nil for any
 -- other shape, or lines that no longer hold the TeX.
-local function display(lines, byte, m, last)
+local function display(lines, byte, m, last, macros)
   if type(m.tex) ~= 'string' or type(m.line) ~= 'number' or type(last) ~= 'number' then
     return nil
   elseif last == m.line then
-    local u, tex = unicode(m.tex), vim.trim(m.tex)
+    local u, tex = unicode(m.tex, macros), vim.trim(m.tex)
     local line, s = lines[m.line], byte(m.line, m.col)
     if u and s and line:sub(s + 1, s + 2) == '$$' then
       local _, e = line:find('^%s*' .. vim.pesc(tex) .. '%s*%$%$', s + 3)
@@ -247,7 +259,7 @@ local function display(lines, byte, m, last)
     end
     tex[#tex + 1] = lines[l]:sub(n + 1)
   end
-  local shown = #tex > 0 and squash(table.concat(tex)) == squash(m.tex) and rows(tex)
+  local shown = #tex > 0 and squash(table.concat(tex)) == squash(m.tex) and rows(tex, macros)
   if not shown then
     return nil
   end
@@ -499,14 +511,33 @@ function M.draw(buf, outline)
   end
 
   if opts.math then
+    -- The macros every formula shares: window.TERN's, then each :::macros
+    -- block's, in the note's order, wherever the formula is.
+    local macros = require('tern.head').macros(buf)
+    for _, b in ipairs(list(outline.blocks)) do
+      local l = b.kind == 'container' and b.name == 'macros' and opener(lines, b)
+      local last = l and math.min(tonumber(b.endLine) or l, #lines)
+      if last and last > l then
+        -- After the opener's indentation or quote marks, up to the closer.
+        local n = #lines[l]:match('^[%s>]*')
+        local body = {}
+        for k = l + 1, last do
+          if k < last or not lines[k]:match('^[%s>]*:::') then
+            body[#body + 1] = lines[k]:sub(n + 1)
+          end
+        end
+        require('tern.tex').macros(table.concat(body, '\n'), macros)
+      end
+    end
+    macros = next(macros) and macros or nil
     for _, m in ipairs(list(outline.math)) do
-      local u = type(m.tex) == 'string' and unicode(m.tex) or nil
+      local u = type(m.tex) == 'string' and unicode(m.tex, macros) or nil
       local w = u ~= nil and worth(m.tex, u)
       local last = m.endLine or m.line
       local number = type(m.number) == 'string' and m.number or nil
       local parts, erow, ecol, single
       if m.display and opts.conceal then
-        parts, erow, ecol, single = display(lines, byte, m, last)
+        parts, erow, ecol, single = display(lines, byte, m, last, macros)
       end
       if parts then
         -- The number at the end of the closing line; the Unicode form of

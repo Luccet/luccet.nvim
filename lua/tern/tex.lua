@@ -3,7 +3,12 @@
 --   unicode(src) -> string, or nil when any part of src has no faithful
 --   Unicode form: a partial conversion would misread the formula.
 --   lines(list) -> display math TeX lines as Unicode line by line, or nil:
---   one line, or an aligned environment written one row a line.
+--   one line, or an environment written one row a line (align, cases, a
+--   matrix), its delimiters drawn as tall as its rows.
+--   macros(text, into) -> the macros TeX definitions make, added to `into`:
+--   \name -> { n = its number of arguments, body }
+--   expand(src, macros) -> src with the macros expanded, or nil when that
+--   fails (an argument missing, an expansion without end)
 -- It reads a small subset of KaTeX: Greek and symbols, function names,
 -- scripts Unicode has (x^2, x_i, x^{-1}), \mathbb and the other alphabets,
 -- \frac and \sqrt written on one line, accents on one letter, \text,
@@ -198,13 +203,16 @@ for _, size in ipairs({ 'big', 'Big', 'bigg', 'Bigg' }) do
 end
 
 -- TeX's spacing between atom classes, as one space or none; scripts get none.
+-- inner is an environment between delimiters, beside the math around it; a
+-- comma after it reads as its own without TeX's thin space.
 local SPACE = {
-  ord = { op = true, bin = true, rel = true },
-  op = { ord = true, op = true, rel = true },
-  bin = { ord = true, op = true, open = true },
-  rel = { ord = true, op = true, open = true },
-  close = { op = true, bin = true, rel = true },
-  punct = { ord = true, op = true, rel = true, open = true, close = true, punct = true },
+  ord = { op = true, bin = true, rel = true, inner = true },
+  op = { ord = true, op = true, rel = true, inner = true },
+  bin = { ord = true, op = true, open = true, inner = true },
+  rel = { ord = true, op = true, open = true, inner = true },
+  close = { op = true, bin = true, rel = true, inner = true },
+  punct = { ord = true, op = true, rel = true, open = true, close = true, punct = true, inner = true },
+  inner = { ord = true, op = true, bin = true, rel = true, open = true, inner = true },
 }
 
 -- The tokenizer: kind, value, next index. Kinds: 'eof', 'char', 'cs'
@@ -510,24 +518,92 @@ function M.unicode(src)
   return result ~= '' and result or nil
 end
 
--- Environments shown row by row: how their columns align (rl: right, left,
--- repeated; c: one centred column), the space between column pairs, and
--- what may follow \begin{name}. equation holds one row, or one of these.
+-- Environments shown row by row, a row a line: how their columns align (rl:
+-- right, left, repeated; c, l: every column so), the space between columns
+-- (rl: between pairs), the most columns, and what may follow \begin{name}.
+-- spec: the argument says how columns align, one letter for all of them or
+-- each its own. equation holds one row, or one of these. An inner
+-- environment may have math before its \begin and after its \end, drawn
+-- beside its middle row, and delimiters as tall as its rows: its own, or
+-- \left and \right around it.
 local ENV = {}
 local NONE, PLACE, COUNT = { '^$' }, { '^$', '^%[[tcb]%]$' }, { '^{%s*%d+%s*}$' }
 for _, name in ipairs({ 'align', 'align*', 'split' }) do
   ENV[name] = { cols = 'rl', gap = '    ', arg = NONE }
 end
-ENV.aligned = { cols = 'rl', gap = '    ', arg = PLACE }
-for _, name in ipairs({ 'alignat', 'alignat*', 'alignedat' }) do
+ENV.aligned = { cols = 'rl', gap = '    ', arg = PLACE, inner = true }
+for _, name in ipairs({ 'alignat', 'alignat*' }) do
   ENV[name] = { cols = 'rl', gap = '', arg = COUNT }
 end
+ENV.alignedat = { cols = 'rl', gap = '', arg = COUNT, inner = true }
 for _, name in ipairs({ 'gather', 'gather*' }) do
-  ENV[name] = { cols = 'c', arg = NONE }
+  ENV[name] = { cols = 'c', max = 1, arg = NONE }
 end
-ENV.gathered = { cols = 'c', arg = PLACE }
+ENV.gathered = { cols = 'c', max = 1, arg = PLACE, inner = true }
 for _, name in ipairs({ 'equation', 'equation*' }) do
-  ENV[name] = { cols = 'c', arg = NONE, one = true }
+  ENV[name] = { cols = 'c', max = 1, arg = NONE, one = true }
+end
+for name, d in pairs({ matrix = { '', '' }, pmatrix = { '(', ')' }, bmatrix = { '[', ']' }, Bmatrix = { '{', '}' },
+    vmatrix = { '|', '|' }, Vmatrix = { '‖', '‖' } }) do
+  ENV[name] = { cols = 'c', gap = '  ', arg = NONE, inner = true, left = d[1], right = d[2] }
+  ENV[name .. '*'] = { cols = 'c', gap = '  ', arg = { '^$', '^%[[lcr]%]$' }, spec = 'all', inner = true,
+    left = d[1], right = d[2] }
+end
+ENV.smallmatrix = ENV.matrix
+for _, name in ipairs({ 'cases', 'dcases' }) do
+  ENV[name] = { cols = 'l', gap = '  ', max = 2, arg = NONE, inner = true, left = '{' }
+end
+for _, name in ipairs({ 'rcases', 'drcases' }) do
+  ENV[name] = { cols = 'l', gap = '  ', max = 2, arg = NONE, inner = true, right = '}' }
+end
+for _, name in ipairs({ 'array', 'darray' }) do
+  ENV[name] = { gap = '  ', arg = { '^{[lcr%s]+}$' }, spec = 'each', inner = true }
+end
+
+-- Delimiters over several lines, in pieces: top, extension, bottom, and a
+-- brace's middle, which needs an odd height.
+local TALL = {
+  ['('] = { '⎛', '⎜', '⎝' }, [')'] = { '⎞', '⎟', '⎠' }, ['['] = { '⎡', '⎢', '⎣' }, [']'] = { '⎤', '⎥', '⎦' },
+  ['{'] = { '⎧', '⎪', '⎩', '⎨' }, ['}'] = { '⎫', '⎪', '⎭', '⎬' }, ['⌊'] = { '⎢', '⎢', '⎣' },
+  ['⌋'] = { '⎥', '⎥', '⎦' }, ['⌈'] = { '⎡', '⎢', '⎢' }, ['⌉'] = { '⎤', '⎥', '⎥' },
+  ['|'] = { '│', '│', '│' }, ['‖'] = { '‖', '‖', '‖' },
+}
+
+-- Line t of delimiter d drawn h lines tall.
+local function piece(d, t, h)
+  if d == '' or h == 1 then
+    return d
+  end
+  local p = TALL[d] or fail()
+  return t == 1 and p[1] or t == h and p[3] or (p[4] and t == (h + 1) / 2) and p[4] or p[2]
+end
+
+-- The delimiter after \left at the end of s, or after \right at its start:
+-- s without them, and the delimiter's text; s alone when it has none.
+local function delimited(s, start)
+  for _, d in ipairs({ '(\\%a+)', '(\\?[^%s%a])' }) do
+    local rest, key
+    if start then
+      key, rest = s:match('^%s*\\right%s*' .. d .. '(.*)$')
+    else
+      rest, key = s:match('^(.-)\\left%s*' .. d .. '%s*$')
+    end
+    if key then
+      return rest, DELIM[key:match('^\\(%a+)$') or key] or fail()
+    end
+  end
+  return s
+end
+
+-- The math before an inner environment of atom class `class`, or after it,
+-- with the space TeX sets between them.
+local function beside(src, class, before)
+  if src:find('^%s*$') then
+    return ''
+  end
+  local atoms = parse_list(src, 1, nil)
+  table.insert(atoms, before and #atoms + 1 or 1, { text = '', class = class })
+  return render(atoms)
 end
 
 -- A row written on one line: its cells, split at the &s outside braces, and
@@ -561,12 +637,13 @@ local function row(line)
 end
 
 local function environment(lines)
-  local name, arg = vim.trim(lines[1]):match('^\\begin%s*{(%a+%*?)}(.*)$')
+  local before, name, arg = vim.trim(lines[1]):match('^(.-)\\begin%s*{(%a+%*?)}(.*)$')
   local env = ENV[name] or fail()
+  local after = vim.trim(lines[#lines]):match('^\\end%s*{' .. vim.pesc(name) .. '}(.*)$')
   arg = vim.trim(arg)
-  if not vim.iter(env.arg):any(function(pat)
+  if not after or not vim.iter(env.arg):any(function(pat)
     return arg:find(pat) ~= nil
-  end) or not vim.trim(lines[#lines]):find('^\\end%s*{' .. vim.pesc(name) .. '}$') then
+  end) or not env.inner and (before ~= '' or after ~= '') then
     fail()
   end
   if env.one and #lines > 3 then
@@ -576,10 +653,26 @@ local function environment(lines)
     inner[#inner + 1] = ''
     return inner
   end
+  local left, right = env.left or '', env.right or ''
+  local pre, l = delimited(before, false)
+  local post, r = delimited(after, true)
+  if l or r then
+    if not (l and r) or left ~= '' or right ~= '' then
+      fail()
+    end
+    left, right = l, r
+  end
+  local cols, max = env.cols, env.max
+  if env.spec == 'all' then
+    cols = arg:match('^%[(%a)%]$') or cols
+  elseif env.spec == 'each' then
+    cols = arg:gsub('[{}%s]', '')
+    max = #cols
+  end
   local rows, widths = {}, {}
   for i = 2, #lines - 1 do
     local cells, broken = row(lines[i])
-    if (broken and env.one) or (not broken and i < #lines - 1) or (env.cols == 'c' and #cells > 1) then
+    if (broken and env.one) or (not broken and i < #lines - 1) or (max and #cells > max) then
       fail()
     end
     for j, cell in ipairs(cells) do
@@ -591,29 +684,248 @@ local function environment(lines)
     end
     rows[#rows + 1] = cells
   end
-  local out = { '' }
-  for _, cells in ipairs(rows) do
+  local k = #rows
+  if k == 0 then
+    fail()
+  end
+  -- Each row as wide as all of them.
+  local texts = {}
+  for i, cells in ipairs(rows) do
     local parts = {}
-    for j, text in ipairs(cells) do
-      local pad = widths[j] - vim.api.nvim_strwidth(text)
-      if env.cols == 'c' then
-        text = (' '):rep(math.floor(pad / 2)) .. text
-      elseif j % 2 == 1 then
-        parts[#parts + 1] = j > 1 and env.gap or nil
-        text = (' '):rep(pad) .. text
-      else
-        text = text .. (' '):rep(pad)
+    for j, width in ipairs(widths) do
+      if j > 1 and (env.cols ~= 'rl' or j % 2 == 1) then
+        parts[#parts + 1] = env.gap
       end
-      parts[#parts + 1] = text
+      local text = cells[j] or ''
+      local pad = width - vim.api.nvim_strwidth(text)
+      local a = cols:sub((j - 1) % #cols + 1, (j - 1) % #cols + 1)
+      local lead = a == 'r' and pad or a == 'c' and math.floor(pad / 2) or 0
+      parts[#parts + 1] = (' '):rep(lead) .. text .. (' '):rep(pad - lead)
     end
-    out[#out + 1] = (table.concat(parts):gsub('%s+$', ''))
+    texts[i] = table.concat(parts)
+  end
+  -- A line for \begin, one for each row, one for \end.
+  local out = {}
+  for i = 1, k + 2 do
+    out[i] = texts[i - 1] or ''
+  end
+  if env.inner then
+    local class = (left ~= '' or right ~= '') and 'inner' or 'ord'
+    local p, s = beside(pre, class, true), beside(post, class, false)
+    -- The delimiters' lines: the rows, and the \begin line when a brace
+    -- needs an odd height. What is around them goes on their middle line.
+    local first = k % 2 == 0 and ((TALL[left] or {})[4] or (TALL[right] or {})[4]) and 1 or 2
+    local h = k + 2 - first
+    local middle = first + math.floor((h - 1) / 2)
+    local indent = (' '):rep(vim.api.nvim_strwidth(p))
+    local blank = (' '):rep(vim.api.nvim_strwidth(texts[1]))
+    local lpad, rpad = left == '{' and ' ' or '', right == '}' and ' ' or ''
+    for i = first, k + 1 do
+      local t = i - first + 1
+      out[i] = (i == middle and p or indent) .. piece(left, t, h) .. lpad .. (texts[i - 1] or blank) .. rpad
+        .. piece(right, t, h) .. (i == middle and s or '')
+    end
+  end
+  for i, text in ipairs(out) do
+    out[i] = text:gsub('%s+$', '')
   end
   -- Nothing to show: the source says more.
   if table.concat(out) == '' then
     fail()
   end
-  out[#out + 1] = ''
   return out
+end
+
+-- The end of the group that opens at s[i]: the index of its `}`.
+local function group_end(s, i)
+  local depth = 0
+  while i <= #s do
+    local c = s:sub(i, i)
+    if c == '\\' then
+      i = i + 1
+    elseif c == '{' then
+      depth = depth + 1
+    elseif c == '}' then
+      depth = depth - 1
+      if depth == 0 then
+        return i
+      end
+    end
+    i = i + 1
+  end
+end
+
+-- The control sequence at s[i] (`\name` or `\` and one character), or nil.
+local function control(s, i)
+  return s:match('^\\%a+', i) or s:match('^\\' .. CHAR, i)
+end
+
+-- A macro's argument at s[i]: a group, without its braces, or one token.
+-- Returns it and the index after it; nil when there is none.
+local function argument_text(s, i)
+  i = s:match('^%s*()', i)
+  local c = s:sub(i, i)
+  if c == '{' then
+    local e = group_end(s, i)
+    return e and s:sub(i + 1, e - 1), e and e + 1
+  elseif c == '\\' then
+    local cs = control(s, i)
+    return cs, cs and i + #cs
+  elseif c == '' or c == '}' then
+    return nil
+  end
+  local ch = s:match('^' .. CHAR, i)
+  return ch, i + #ch
+end
+
+-- The number of arguments in a \def's parameter text, #1#2…; nil for any
+-- other parameter text (delimited parameters).
+local function parameters(text)
+  text = text:gsub('%s', '')
+  local n = 0
+  for d in text:gmatch('#(%d)') do
+    n = n + 1
+    if tonumber(d) ~= n then
+      return nil
+    end
+  end
+  return text:gsub('#%d', '') == '' and n or nil
+end
+
+local DEF = { def = true, gdef = true, edef = true, xdef = true }
+local NEWCOMMAND = { newcommand = true, renewcommand = true, providecommand = true }
+
+function M.macros(text, into)
+  into = into or {}
+  if type(text) ~= 'string' then
+    return into
+  end
+  -- The name after a definition command: \name, or {\name}.
+  local function name_at(k)
+    k = text:match('^%s*()', k)
+    if text:sub(k, k) == '{' then
+      local inner = text:match('^{%s*()', k)
+      local cs = control(text, inner)
+      local e = cs and text:match('^%s*}()', inner + #cs)
+      return e and cs, e
+    end
+    local cs = control(text, k)
+    return cs, cs and k + #cs
+  end
+  -- The body group at or after k: its text and the index after it.
+  local function body_at(k)
+    local b = k and text:match('^%s*(){', k)
+    local e = b and group_end(text, b)
+    return e and text:sub(b + 1, e - 1), e and e + 1
+  end
+  local i = 1
+  while i <= #text do
+    local c = text:sub(i, i)
+    if c == '%' then
+      i = (text:find('\n', i, true) or #text) + 1
+    elseif c ~= '\\' then
+      i = i + 1
+    else
+      local word = text:match('^\\(%a*)', i)
+      local k = i + 1 + #word
+      if DEF[word] then
+        local name, at = name_at(k)
+        local ptext, b = text:match('^([^{]*)(){', at or k)
+        local body, e = body_at(b)
+        local n = ptext and parameters(ptext)
+        if name and body and n then
+          if word == 'edef' or word == 'xdef' then
+            body = M.expand(body, into) or body
+          end
+          into[name] = { n = n, body = body }
+        end
+        i = e or k
+      elseif NEWCOMMAND[word] then
+        local name, at = name_at(text:match('^%*?()', k))
+        local n, opt = 0, nil
+        if name then
+          local count, after = text:match('^%s*%[%s*(%d)%s*%]()', at)
+          if count then
+            n, at = tonumber(count), after
+          end
+          -- An optional argument's default: not read, the definition skipped.
+          opt = text:match('^%s*()%[', at)
+          if opt then
+            at = text:match('^%b[]()', opt)
+          end
+        end
+        local body, e = body_at(at)
+        if name and body and not opt and not (word == 'providecommand' and into[name]) then
+          into[name] = { n = n, body = body }
+        end
+        i = e or at or k
+      elseif word == 'let' then
+        local name, at = name_at(k)
+        at = at and text:match('^%s*=?%s*()', at)
+        local target = at and control(text, at)
+        if name and target then
+          into[name] = into[target] and vim.deepcopy(into[target]) or { n = 0, body = target }
+          i = at + #target
+        else
+          i = at or k
+        end
+      else
+        i = k + (word == '' and 1 or 0)
+      end
+    end
+  end
+  return into
+end
+
+function M.expand(src, macros)
+  if type(src) ~= 'string' or not macros or next(macros) == nil then
+    return src
+  end
+  local budget = 20000
+  local function run(s, depth)
+    if depth > 32 then
+      fail()
+    end
+    local out, i = {}, 1
+    while i <= #s do
+      local j = s:find('\\', i, true)
+      if not j then
+        out[#out + 1] = s:sub(i)
+        break
+      end
+      out[#out + 1] = s:sub(i, j - 1)
+      local cs = control(s, j) or '\\'
+      local k = j + #cs
+      local m = macros[cs]
+      if m then
+        local args = {}
+        for a = 1, m.n do
+          args[a], k = argument_text(s, k)
+          if not args[a] then
+            fail()
+          end
+        end
+        local text = run((m.body:gsub('#([#1-9])', function(d)
+          return d == '#' and '#' or args[tonumber(d)] or fail()
+        end)), depth + 1)
+        budget = budget - #text
+        if budget < 0 then
+          fail()
+        end
+        out[#out + 1] = text
+        -- A control word at the end must not run into a letter after it.
+        if text:match('\\%a+$') and s:sub(k, k):match('%a') then
+          out[#out + 1] = ' '
+        end
+      else
+        out[#out + 1] = cs
+      end
+      i = k
+    end
+    return table.concat(out)
+  end
+  local ok, result = pcall(run, src, 0)
+  return ok and result or nil
 end
 
 function M.lines(lines)

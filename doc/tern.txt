@@ -530,8 +530,9 @@ Math (|tern-option-render.math|)
     `x² {#eq}  (1)`. While the cursor is on any line of the equation, its
     source shows; the Unicode form of TeX on one line goes before the
     number at the end of the closing line.
-    Display math is drawn in place when its TeX is one line, or an aligned
-    environment written one row a line (|tern-tex|), between a `$$` line
+    Display math is drawn in place when its TeX is one line, or an
+    environment written one row a line, such as align, cases or a matrix
+    (|tern-tex|), between a `$$` line
     and a closing `$$` line. Any other display math keeps its source and
     its `$$`, and TeX on one line gets its Unicode form at the end of the
     closing line.
@@ -611,8 +612,45 @@ TeX as Unicode                                                      *tern-tex*
     alignedat (columns aligned right and left, around each `&`), gather,
     gather*, gathered (rows centred), and equation, equation*, alone or
     around one of the others. `\nonumber` and `\notag` show nothing.
+    Cases and matrices are read the same way, their delimiters drawn as
+    tall as their rows: cases, dcases, rcases, drcases (columns aligned
+    left), matrix, smallmatrix, pmatrix, bmatrix, Bmatrix, vmatrix,
+    Vmatrix (columns centred; the starred forms take [l], [c] or [r]), and
+    array, its columns aligned as its l, c and r say. Math may come before
+    `\begin` on its line and after `\end` on its line, and is drawn beside
+    the middle row; `\left` and `\right` there are the delimiters of an
+    array, matrix or aligned:
+        $$
+        f(x) = \begin{cases}
+          1 & x > 0 \\                    ⎧ 1   x > 0
+          0 & x = 0 \\             f(x) = ⎨ 0   x = 0
+          -1 & x < 0                      ⎩ −1  x < 0
+        \end{cases}
+        $$
+        $$
+        A = \begin{pmatrix}
+        a & b \\                   A = ⎛a  b⎞
+        c & d                          ⎝c  d⎠
+        \end{pmatrix}
+        $$
+    A brace over an even number of rows starts on the `\begin` line, so
+    that its middle is on a row.
+    The TeX is read after the note's macros, which every formula shares,
+    as on the page: the string values of `window.TERN.katex.macros` in the
+    head, then the definitions of each `:::macros` block, in the note's
+    order, wherever the formula is. `\def`, `\gdef`, `\edef`, `\xdef`,
+    `\let`, and `\newcommand`, `\renewcommand` and `\providecommand` with
+    their `[n]` arguments are read:
+        :::macros
+        \gdef\R{\mathbb{R}}
+        \gdef\norm#1{\lVert #1 \rVert}
+        :::
+        $\norm{x} \in \R^n$      ‖x‖ ∈ ℝⁿ
+    A definition with delimited parameters or a default for an optional
+    argument is not read, and a formula that uses it keeps its source, as
+    does one whose expansion does not end.
     When any part of a formula has no faithful Unicode form, such as a
-    matrix, cases, `\tag` or a superscript q, the formula gets no Unicode
+    matrix on one line, `\tag` or a superscript q, the formula gets no Unicode
     text, because a partial conversion would misread it, and its source
     stays. Beside the source, a formula whose Unicode form reads the same
     as the source gets none either; in its place, `$x$` reads `x`.

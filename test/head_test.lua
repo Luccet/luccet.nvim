@@ -44,6 +44,24 @@ return {
     T.eq(head.summary(buffer({ 'x' }))[1], { '⟨head⟩', 'TernVirtVerbatim' }, 'highlights')
   end },
 
+  { 'the macros of window.TERN.katex', function(T)
+    local head = require('tern.head')
+    local buf = buffer({
+      '<!doctype html>',
+      '<script>window.TERN = { schema: { block: {} }, katex: { base: "k", macros: {',
+      [[  '\\RR': '\\mathbb{R}', "\\abs": "\\left|#1\\right|", '\\pair': '(#1, #2)',]],
+      [[  'not-a-macro': 'x', '\\fn': f() } } };</script>]],
+      '<script src="tern.js"></script>',
+    })
+    T.eq(head.macros(buf), {
+      ['\\RR'] = { n = 0, body = '\\mathbb{R}' },
+      ['\\abs'] = { n = 1, body = '\\left|#1\\right|' },
+      ['\\pair'] = { n = 2, body = '(#1, #2)' },
+    }, 'string values, up to the first that is not one')
+    T.eq(head.macros(buffer({ '<script src="tern.js"></script>' })), {}, 'none')
+    T.eq(head.macros(buffer({ 'no note' })), {}, 'not a note')
+  end },
+
   { 'the fold text is the summary on the head, Neovim\'s elsewhere', function(T)
     local buf = buffer({ '<!doctype html>', '<script>window.TERN = {}</script>', '<script src="tern.js"></script>', '# A', 'x', 'y' })
     api.nvim_set_current_buf(buf)

@@ -186,7 +186,7 @@ return {
     for _, t in ipairs({
       { '\\begin{align}', 'a &= b \\\\ c &= d', '\\end{align}' }, -- two rows on a line
       { '\\begin{align}', 'a &= b', '+ c \\\\', 'd &= e', '\\end{align}' }, -- a row over two lines
-      { '\\begin{cases}', '1 & x > 0', '\\end{cases}' }, { '\\begin{pmatrix}', 'a & b', '\\end{pmatrix}' },
+      { 'x = \\begin{align}', 'a &= b', '\\end{align}' }, { '\\begin{align}', 'a &= b', '\\end{align} + c' },
       { '\\begin{gather}', 'a & b', '\\end{gather}' }, { '\\begin{equation}', 'a \\\\', '\\end{equation}' },
       { '\\begin{equation}', 'a', 'b', '\\end{equation}' }, { '\\begin{align}', 'a &= b', '\\end{aligned}' },
       { '\\begin{align}', 'e^{i\\pi} &= -1', '\\end{align}' }, { '\\begin{align}', 'a &= b \\tag{1}', '\\end{align}' },
@@ -198,6 +198,108 @@ return {
       T.eq(lines(t), nil, table.concat(t, ' | '))
     end
     T.eq(lines('x'), nil, 'a string')
+  end },
+
+  { 'tex: cases and matrices line by line, their delimiters as tall as their rows', function(T)
+    local function lines(t)
+      return require('tern.tex').lines(t)
+    end
+    local cases = {
+      { { 'f(x) = \\begin{cases}', '  1 & x > 0 \\\\', '  0 & x = 0 \\\\', '  -1 & x < 0', '\\end{cases}' },
+        { '', '       ⎧ 1   x > 0', 'f(x) = ⎨ 0   x = 0', '       ⎩ −1  x < 0', '' } },
+      -- An even number of rows: the brace starts on the \begin line.
+      { { '\\begin{cases}', 'x^2 & x \\ge 0 \\\\', '0 & \\text{otherwise}', '\\end{cases}.' },
+        { '⎧', '⎨ x²  x ≥ 0     .', '⎩ 0   otherwise', '' } }, -- the period after the widest row
+      { { '\\begin{cases}', 'a & 1 \\\\', 'b & 2 \\\\', 'c & 3 \\\\', 'd & 4', '\\end{cases}' },
+        { '⎧', '⎪ a  1', '⎨ b  2', '⎪ c  3', '⎩ d  4', '' } },
+      { { 'x = \\begin{cases}', '1 & \\text{if } y \\in \\mathbb{Q}', '\\end{cases}' }, { '', 'x = { 1  if y ∈ ℚ', '' } },
+      { { '\\begin{dcases}', '\\frac{1}{n} & n > 0 \\\\[2pt]', '0 & \\text{else} \\\\', '\\end{dcases}' },
+        { '⎧', '⎨ 1/n  n > 0', '⎩ 0    else', '' } },
+      { { '\\begin{rcases}', 'a & b \\\\', 'c & d', '\\end{rcases} \\implies x' }, { '     ⎫', 'a  b ⎬ ⟹ x', 'c  d ⎭', '' } },
+      { { 'A = \\begin{pmatrix}', 'a & b \\\\', 'c & d', '\\end{pmatrix}' }, { '', 'A = ⎛a  b⎞', '    ⎝c  d⎠', '' } },
+      { { 'A = \\begin{pmatrix}', 'a \\\\', 'b', '\\end{pmatrix}, \\quad x' }, { '', 'A = ⎛a⎞,  x', '    ⎝b⎠', '' } }, -- no space before ,
+      { { 'A = \\begin{bmatrix}', '1 & 0 & 0 \\\\', '0 & 1 & 0 \\\\', '0 & 0 & 10', '\\end{bmatrix}' },
+        { '', '    ⎡1  0  0 ⎤', 'A = ⎢0  1  0 ⎥', '    ⎣0  0  10⎦', '' } },
+      { { '\\begin{pmatrix}', '1 \\\\', '2 \\\\', '3', '\\end{pmatrix}' }, { '', '⎛1⎞', '⎜2⎟', '⎝3⎠', '' } },
+      { { '\\begin{Bmatrix}', 'a \\\\', 'b', '\\end{Bmatrix}' }, { '⎧   ⎫', '⎨ a ⎬', '⎩ b ⎭', '' } },
+      { { '\\det \\begin{vmatrix}', 'a & b \\\\', 'c & d', '\\end{vmatrix} = ad - bc' },
+        { '', 'det │a  b│ = ad − bc', '    │c  d│', '' } },
+      { { '\\begin{Vmatrix}', 'x', '\\end{Vmatrix}' }, { '', '‖x‖', '' } },
+      { { '\\begin{matrix}', '\\alpha_1 & \\beta \\\\', 'x & y^2', '\\end{matrix}' }, { '', 'α₁  β', 'x   y²', '' } },
+      { { '\\begin{smallmatrix}', 'a & b', '\\end{smallmatrix}' }, { '', 'a  b', '' } },
+      { { '\\begin{pmatrix*}[r]', '-1 & 2 \\\\', '3 & -40', '\\end{pmatrix*}' }, { '', '⎛−1    2⎞', '⎝ 3  −40⎠', '' } },
+      { { '\\begin{array}{rcl}', 'a & = & bbb \\\\', 'ccc & \\le & d', '\\end{array}' }, { '', '  a  =  bbb', 'ccc  ≤  d', '' } },
+      { { 'f = \\left\\{ \\begin{array}{ll}', 'a & b \\\\', 'c & d', '\\end{array} \\right.' },
+        { '    ⎧', 'f = ⎨ a  b', '    ⎩ c  d', '' } },
+      { { '\\left\\lfloor \\begin{matrix}', 'a \\\\', 'b', '\\end{matrix} \\right\\rfloor' }, { '', '⎢a⎥', '⎣b⎦', '' } },
+      { { '\\left\\langle \\begin{matrix}', 'a', '\\end{matrix} \\right\\rangle' }, { '', '⟨a⟩', '' } },
+      { { 'x = \\begin{aligned}', 'a &= b \\\\', 'c &= d', '\\end{aligned}' }, { '', 'x = a = b', '    c = d', '' } },
+      { { '\\begin{pmatrix}', ' & \\\\', ' & ', '\\end{pmatrix}' }, { '', '⎛  ⎞', '⎝  ⎠', '' } },
+      { { '\\begin{equation}', 'f(x) = \\begin{cases}', '1 & x > 0 \\\\', '0', '\\end{cases}', '\\end{equation}' },
+        { '', '       ⎧', 'f(x) = ⎨ 1  x > 0', '       ⎩ 0', '', '' } },
+    }
+    for _, c in ipairs(cases) do
+      T.eq(lines(c[1]), c[2], table.concat(c[1], ' | '))
+    end
+    for _, t in ipairs({
+      { '\\begin{pmatrix} a & b \\\\', 'c & d \\end{pmatrix}' }, -- rows on the \begin and \end lines
+      { '\\begin{pmatrix}', 'a & b \\\\ c & d', '\\end{pmatrix}' }, -- two rows on a line
+      { '\\begin{bmatrix}', 'e^{i\\pi} & 1', '\\end{bmatrix}' }, -- a cell without a Unicode form
+      { '\\begin{cases}', 'a & b & c', '\\end{cases}' }, -- cases has two columns
+      { '\\begin{array}{cc}', 'a & b & c', '\\end{array}' }, { '\\begin{array}{|c|}', 'a', '\\end{array}' },
+      { '\\begin{array}', 'a', '\\end{array}' }, { '\\begin{pmatrix}[r]', 'a', '\\end{pmatrix}' },
+      { '\\left( \\begin{pmatrix}', 'a', '\\end{pmatrix} \\right)' }, -- delimiters twice
+      { '\\left( \\begin{array}{c}', 'a', '\\end{array}' }, { '\\begin{array}{c}', 'a', '\\end{array} \\right)' },
+      { '\\left\\langle \\begin{matrix}', 'a \\\\', 'b', '\\end{matrix} \\right\\rangle' }, -- no tall ⟨
+      { '\\begin{pmatrix}', '\\begin{matrix} a \\end{matrix} & b', '\\end{pmatrix}' },
+      { '\\begin{cases}', '\\end{cases}' }, { '\\begin{matrix}', ' & \\\\', ' & ', '\\end{matrix}' },
+      { '\\begin{pmatrix}', 'a \\\\', '\\hline', 'b', '\\end{pmatrix}' }, { 'a & \\begin{cases}', 'b', '\\end{cases}' },
+    }) do
+      T.eq(lines(t), nil, table.concat(t, ' | '))
+    end
+  end },
+
+  { 'tex: macros are read from their definitions and expanded', function(T)
+    local tex = require('tern.tex')
+    local m = tex.macros(table.concat({
+      '\\gdef\\R{\\mathbb{R}}',
+      '\\gdef\\norm#1{\\lVert #1 \\rVert}',
+      '% \\gdef\\commented{x}',
+      '\\newcommand{\\RR}{\\mathbb{R}}',
+      '\\newcommand*\\pair[2]{(#1, #2)}',
+      '\\def\\im{\\mathrm{img}}',
+      '\\renewcommand{\\im}{\\operatorname{im}}',
+      '\\providecommand{\\R}{\\text{not this}}',
+      '\\newcommand{\\opt}[2][x]{#1 #2}', -- a default argument: skipped
+      '\\def\\upto#1.{#1}', -- a delimited parameter: skipped
+      '\\let\\eps=\\varepsilon',
+      '\\let\\Reals\\R',
+      '\\global\\def\\set#1{\\{\\, #1 \\,\\}}',
+      '\\edef\\RN{\\R^n}',
+      '\\def\\loop{\\loop}',
+    }, '\n'))
+    local names = vim.tbl_keys(m)
+    table.sort(names)
+    T.eq(names, { '\\R', '\\RN', '\\RR', '\\Reals', '\\eps', '\\im', '\\loop', '\\norm', '\\pair', '\\set' }, 'the names')
+    T.eq(m['\\norm'], { n = 1, body = '\\lVert #1 \\rVert' }, 'an argument')
+    T.eq(m['\\R'].body, '\\mathbb{R}', '\\providecommand keeps a macro')
+    T.eq(m['\\im'].body, '\\operatorname{im}', '\\renewcommand replaces one')
+    T.eq(m['\\RN'].body, '\\mathbb{R}^n', '\\edef expands its body')
+    local cases = {
+      ['\\R^n'] = 'ℝⁿ', ['\\dim \\im T'] = 'dim im T', ['\\norm{x} \\ge 0'] = '‖x‖ ≥ 0', ['\\norm x'] = '‖x‖',
+      ['\\pair{a}{b}'] = '(a, b)', ['\\pair ab'] = '(a, b)', ['\\set{x \\mid x > 0}'] = '{ x ∣ x > 0 }',
+      ['\\Reals \\eps'] = 'ℝε', ['\\norm{x}a'] = '‖x‖a', ['\\RR \\to \\RN'] = 'ℝ → ℝⁿ',
+    }
+    for src, want in pairs(cases) do
+      T.eq(tex.unicode(tex.expand(src, m)), want, src)
+    end
+    T.eq(tex.expand('\\norm{x}a', m), '\\lVert x \\rVert a', 'a control word kept from the letter after it')
+    for _, src in ipairs({ '\\loop', '\\norm', '\\pair{a}', '\\norm}' }) do
+      T.eq(tex.expand(src, m), nil, src .. ': no expansion')
+    end
+    T.eq(tex.expand('\\Ra + \\opt', m), '\\Ra + \\opt', 'what is not a macro stays')
+    T.eq(tex.expand('\\R', nil), '\\R', 'no macros')
+    T.eq(tex.expand(('\\twice'):rep(3), tex.macros('\\def\\twice{\\twice\\twice}')), nil, 'an expansion without end')
   end },
 
   { 'tex: malformed and empty input', function(T)
@@ -357,8 +459,8 @@ return {
       '> \\end{align}', -- 6
       '> $$ {#eq}', -- 7
       '$$', -- 8
-      '\\begin{cases}', -- 9: no Unicode form
-      '1 & x > 0', -- 10
+      '\\begin{cases}', -- 9
+      'e^{i\\pi} & x > 0', -- 10: no Unicode form
       '\\end{cases}', -- 11
       '$$', -- 12
     })
@@ -367,7 +469,7 @@ return {
     o.math = {
       { line = 2, col = 3, endLine = 7, ['end'] = 11, display = true, number = '(1)',
         tex = '\\begin{align}\nf(x) &= x^2 + 1 \\\\\n  &\\ge 1\n\\end{align}' },
-      { line = 8, col = 1, endLine = 12, ['end'] = 3, display = true, tex = '\\begin{cases}\n1 & x > 0\n\\end{cases}' },
+      { line = 8, col = 1, endLine = 12, ['end'] = 3, display = true, tex = '\\begin{cases}\ne^{i\\pi} & x > 0\n\\end{cases}' },
     }
     local render = require('tern.render')
     with_outlines({ [buf] = o }, function()
@@ -383,6 +485,37 @@ return {
       go(5)
       T.eq(marks(buf), { { 6, 0, '(1)', 'eol', 'TernVirtLabel' } }, 'the cursor in it: the source, and the number')
       T.eq(concealed(buf), {}, 'nothing hidden')
+    end)
+  end },
+
+  { 'cases show in place with a brace as tall as their rows', function(T)
+    local lines = {
+      'x', -- 1
+      '$$', -- 2
+      'f(x) = \\begin{cases}', -- 3
+      '  x^2 & x \\ge 0 \\\\', -- 4
+      '  0 & \\text{otherwise}', -- 5
+      '\\end{cases}', -- 6
+      '$$ {#eq-f}', -- 7
+    }
+    local buf = buffer(lines)
+    vim.wo.conceallevel = 2
+    local o = empty()
+    o.math = { { line = 2, col = 1, endLine = 7, ['end'] = 3, display = true, number = '(2)',
+      tex = table.concat(lines, '\n', 3, 6) } }
+    local render = require('tern.render')
+    with_outlines({ [buf] = o }, function()
+      render.attach(buf)
+      T.eq(marks(buf), {
+        { 2, #lines[3], '       ⎧', 'inline', 'TernVirtMath' }, -- two rows: the brace starts on the \begin line
+        { 3, #lines[4], 'f(x) = ⎨ x²  x ≥ 0', 'inline', 'TernVirtMath' },
+        { 4, #lines[5], '       ⎩ 0   otherwise', 'inline', 'TernVirtMath' },
+        { 6, 0, '(2)', 'eol', 'TernVirtLabel' },
+        { 6, 10, '{#eq-f}', 'inline', 'TernVirtId' },
+      }, 'the rows beside a brace, f(x) = on its middle')
+      T.eq(#concealed(buf), 6, 'every line hidden: $$, \\begin, the rows, \\end, "$$ {#eq-f}"')
+      go(4)
+      T.eq(marks(buf), { { 6, 0, '(2)', 'eol', 'TernVirtLabel' } }, 'the cursor in it: the source')
     end)
   end },
 
@@ -566,6 +699,43 @@ return {
     T.eq(concealed(buf), { { 1, 0, 1, 7 }, { 3, 0, 3, 8 }, { 4, 0, 4, 22 }, { 6, 0, 6, 9 } }, 'the lines of the tags hidden')
     T.eq(tinted(buf), { { 1, 3, 'TernVerbatim' }, { 4, 6, 'TernVerbatim' }, { 7, 7, 'TernVerbatim' } },
       'tinted, a block on one line too; a textarea is no code')
+  end },
+
+  { 'the note\'s macros, wherever their block is, and window.TERN\'s', function(T)
+    local buf = buffer({
+      '<script>window.TERN = { katex: { macros: { "\\\\C": "\\\\mathbb{C}", \'\\\\abs\': \'|#1|\' } } }</script>', -- 1
+      '<script src="tern.js"></script>', -- 2
+      'In $\\R^n$ and $\\C$, $\\abs{x} = \\norm{y}$, $\\bad$.', -- 3
+      '$$', -- 4
+      '\\begin{align}', -- 5
+      '\\norm{x} &= \\R \\\\', -- 6
+      '&= \\C', -- 7
+      '\\end{align}', -- 8
+      '$$', -- 9
+      '> :::macros', -- 10
+      '> \\gdef\\R{\\mathbb{R}}', -- 11
+      '> \\gdef\\norm#1{\\lVert #1 \\rVert}', -- 12
+      '> \\gdef\\bad{\\bad}', -- 13
+      '> :::', -- 14
+    })
+    vim.wo.conceallevel = 2
+    api.nvim_win_set_cursor(0, { 10, 0 })
+    local line = api.nvim_buf_get_lines(buf, 2, 3, false)[1]
+    local function math(tex)
+      local s = line:find('$' .. tex .. '$', 1, true)
+      return { line = 3, col = s, endLine = 3, ['end'] = s + #tex + 2, display = false, tex = tex }
+    end
+    local o = empty()
+    o.math = { math('\\R^n'), math('\\C'), math('\\abs{x} = \\norm{y}'), math('\\bad'),
+      { line = 4, col = 1, endLine = 9, ['end'] = 3, display = true, tex = '\\begin{align}\n\\norm{x} &= \\R \\\\\n&= \\C\n\\end{align}' } }
+    o.blocks = { { line = 10, endLine = 14, kind = 'container', name = 'macros', colons = 3 } }
+    require('tern.render').draw(buf, o)
+    local texts = vim.tbl_map(function(mk)
+      return mk[3]
+    end, vim.tbl_filter(function(mk)
+      return mk[5] == 'TernVirtMath'
+    end, marks(buf)))
+    T.eq(texts, { 'ℝⁿ', 'ℂ', '|x| = ‖y‖', '‖x‖ = ℝ', '    = ℂ' }, 'expanded; \\bad never ends, so its source stays')
   end },
 
   { 'inline math over two lines is not hidden', function(T)
