@@ -9,5 +9,10 @@ local buf = vim.api.nvim_get_current_buf()
 vim.opt_local.formatoptions:remove('t')
 vim.opt_local.commentstring = '<!-- %s -->'
 vim.b.undo_ftplugin = 'setlocal formatoptions< commentstring<'
+-- What tern.render draws in place of the source hides the source.
+if require('tern.config').options.render.conceal then
+  vim.opt_local.conceallevel = 2
+  vim.b.undo_ftplugin = vim.b.undo_ftplugin .. ' conceallevel<'
+end
 
 require('tern').attach(buf)

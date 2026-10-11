@@ -166,6 +166,7 @@ The defaults: >lua
         labels = true,
         refs = true,
         math = true,
+        conceal = true,
       },
       preview = {
         host = '127.0.0.1',
@@ -196,8 +197,9 @@ lsp                                                          *tern-option-lsp*
 fold                                                        *tern-option-fold*
     Boolean. Default: true.
     Sets the folds of each window that shows a note: from the server, or by
-    headings without one (|tern-folding|). With false, the plugin does not
-    touch the fold options.
+    headings without one, and a fold for the head (|tern-folding|). With
+    false, the plugin does not touch the fold options, and the head stays
+    in sight (|tern-render-head|).
 
 render                                                    *tern-option-render*
     Table. The virtual text drawn from the server's outline (|tern-render|).
@@ -220,6 +222,17 @@ render.math                                          *tern-option-render.math*
     Boolean. Default: true.
     Simple TeX as Unicode beside each formula, and the equation numbers of
     display math.
+
+render.conceal                                    *tern-option-render.conceal*
+    Boolean. Default: true.
+    Draws math with a Unicode form in place of its source, and a block's
+    opener in place of its syntax, with its other attributes and its
+    closer hidden (|tern-render|); keeps the head folded
+    (|tern-render-head|). The source shows again while the cursor is on
+    it. The ftplugin sets 'conceallevel' to 2 in the note's window. With
+    false, nothing is hidden: the Unicode form follows the source, labels
+    go at the end of the opener line, the head's fold stays open, and
+    'conceallevel' is left alone.
 
 preview                                                  *tern-option-preview*
     Table. The |:TernPreview| server (|tern-preview|).
@@ -405,20 +418,29 @@ Symbols                                                         *tern-symbols*
 Folding                                                         *tern-folding*
     With |tern-option-fold|, each window that shows a note gets these
     window-local options:
-        'foldmethod'  expr
-        'foldexpr'    v:lua.vim.lsp.foldexpr()
-        'foldlevel'   99, so every fold starts open
-        'foldtext'    its default
+        'foldmethod'    expr
+        'foldexpr'      v:lua.require'tern.lsp'.serverfold(v:lnum)
+        'foldlevel'     99, so every fold starts open
+        'foldtext'      v:lua.require'tern.head'.foldtext()
+        'foldminlines'  0, so that a one-line head can be closed
+        'fillchars'     with `fold: `, spaces after a closed fold's text
+                        instead of dots, unless 'fillchars' sets `fold:`
     A window that already folds this way keeps its 'foldlevel'. The server
     folds containers, fences, display math, tables, lists, footnote
     definitions, raw HTML blocks, and the section of each heading. Use |zc|,
     |zo|, |za|, |zM| and |zR|.
+    The head, the lines up to the tern.js line, is a fold of its own, at
+    level 2 inside a level-1 fold of the same lines. |tern-render-head|
+    keeps the inner one closed. The outer one stays open, because a fold
+    that appears takes the state of the fold before it, and the folds
+    after the head must not start closed. On the head's fold, 'foldtext'
+    shows what the head holds; on the others, Neovim's |foldtext()|.
 
                                                           *tern-lexical-folds*
     Without a server (|tern-option-lsp| is false, or the server cannot
     start), notes fold by headings: a heading of level N starts a fold of
-    level N, and headings inside fenced code are ignored. The lines up to
-    the tern.js line are at level 0. 'foldexpr' is then
+    level N, and headings inside fenced code are ignored. The head is
+    folded as above. 'foldexpr' is then
     `v:lua.require'tern.lsp'.foldexpr(v:lnum)`.
 
 When the server does not run                               *tern-lsp-fallback*
@@ -469,14 +491,19 @@ unloaded.
 7. VIRTUAL TEXT                                                  *tern-render*
 
 The plugin draws text from the outline (|tern-outline|) beside the source,
-so that the source shows what the page will show. The source itself is never
-hidden or concealed. Each kind has its own flag:
+so that the source shows what the page will show. With
+|tern-option-render.conceal|, math and the syntax of blocks are drawn in
+place of their source, which shows again while the cursor is on it. Each
+kind has its own flag:
 
 Labels (|tern-option-render.labels|)
     At the end of a numbered block's opener line, the label that the
     vocabulary gives the block, with its number: `Theorem 1`. When the
     block's title is not visible on that line, ` — Title` follows,
-    shortened to 60 characters. Highlight: |hl-TernVirtLabel|.
+    shortened to 60 characters. With |tern-option-render.conceal|, the
+    label goes in place of the opener instead (see Blocks below), and at
+    the end of the line while the cursor is on it. Highlight:
+    |hl-TernVirtLabel|.
 
 References (|tern-option-render.refs|)
     Right after each `@id` that resolves, what it reads as on the page:
@@ -485,10 +512,85 @@ References (|tern-option-render.refs|)
     Highlight: |hl-TernVirtRef|.
 
 Math (|tern-option-render.math|)
-    For inline math `$…$`, the Unicode form right after the closing `$`.
-    For display math, at the end of the closing `$$` line: the Unicode
-    form, then the equation number, such as `(1)`. Highlights:
-    |hl-TernVirtMath| for the formula, |hl-TernVirtLabel| for the number.
+    For inline math `$…$`, the Unicode form in place of the source, so
+    that `$\mathbb{R}^n$` reads `ℝⁿ`. On the cursor line the source shows,
+    and the Unicode form follows the closing `$`.
+    For display math, the Unicode form in place of its TeX, line by line,
+    with the `$$` hidden, and the equation number, such as `(1)`, at the
+    end of the closing line:
+        $$
+        \begin{align}
+        f(x) &= (x + 1)^2 \\        f(x) = (x + 1)²
+             &= x^2 + 2x + 1 \\          = x² + 2x + 1
+             &\ge 1                      ≥ 1
+        \end{align}
+        $$ {#eq-a}                  {#eq-a}  (1)
+    The lines of `$$`, `\begin` and `\end` stay as blank lines, as Neovim
+    hides text but not lines. The one-line form `$$ x^2 $$ {#eq}` reads
+    `x² {#eq}  (1)`. While the cursor is on any line of the equation, its
+    source shows; the Unicode form of TeX on one line goes before the
+    number at the end of the closing line.
+    Display math is drawn in place when its TeX is one line, or an aligned
+    environment written one row a line (|tern-tex|), between a `$$` line
+    and a closing `$$` line. Any other display math keeps its source and
+    its `$$`, and TeX on one line gets its Unicode form at the end of the
+    closing line.
+    The source stays hidden under the cursor too when 'concealcursor' has
+    the mode, and shows everywhere with 'conceallevel' 0 or
+    |tern-option-render.conceal| false. Inline math on two lines is never
+    hidden. Highlights: |hl-TernVirtMath| for the formula,
+    |hl-TernVirtLabel| for the number.
+
+Blocks (|tern-option-render.conceal|)
+    A block's opener in place of its syntax: the label (or, without one,
+    the block's name), the title as written, and the id of its
+    attributes. Its other attributes and its closer are hidden, and an
+    attribute line above it shows only its id:
+        {#a1 .wide}                          {#a1}
+        :::theorem[Main idea]{#t1 .big}      Theorem 1 Main idea {#t1}
+        Body.                                Body.
+        :::
+        :::row{cols=2}                       row
+    Leaves read the same way, `Figure 1 A cap {#f1}`, and a leaf without a
+    label shows its name in angle brackets, a placeholder for what the
+    page puts there: `⟨toc⟩`.
+    A container with a verbatim body (`:::meta`, `:::macros`, `{raw}`)
+    is tinted from its opener to its closer, like a code block, and its
+    body stays as written:
+        :::meta                  meta               ┐
+        title: Linear maps       title: Linear maps │ tinted
+        :::                                         ┘
+    `+++` cells and attribute lines before anything but a block keep their
+    source, as the outline does not hold them. On the cursor line the
+    source shows, with the label at its end. Highlights: |hl-TernVirtLabel|
+    for the label, |hl-TernVirtName| for the name, |hl-TernVirtVerbatim|
+    for a verbatim block's name, |hl-TernVerbatim| for its tint,
+    |hl-TernVirtId| for the id.
+
+The head (|tern-option-render.conceal|)                     *tern-render-head*
+    The head, from the doctype to the tern.js line, with any window.TERN
+    script, <title> or <style>, is folded into one line that says what it
+    holds: its title, `schema` for window.TERN, other scripts, `style`,
+    and the add-ons of the tern.js line's `data-use`:
+        <!doctype html><meta charset="utf-8">
+        <script>                              ⟨head⟩ schema · style
+          window.TERN = { schema: … };
+        </script>
+        <style>…</style>
+        <script src="tern.js"></script>
+    It is folded when the note is first drawn in a window, opens when the
+    cursor moves into it (from the line below, onto its last line) or
+    Insert mode starts there, and folds again when the cursor leaves. This
+    needs the plugin's folds (|tern-folding|); without them, a one-line
+    head is drawn in place like a block's opener, and a longer one stays
+    as it is. |:TernRender| off opens it. Highlights: |hl-TernVirtVerbatim|
+    for ⟨head⟩, |hl-TernVirtName| for the rest.
+
+HTML code blocks (|tern-option-render.conceal|)
+    A <style> or <script> block in the note is drawn like a block with a
+    verbatim body: tinted, its name in place of a start tag alone on its
+    line, and an end tag alone on its line hidden. Its code stays as
+    written.
 
 TeX as Unicode                                                      *tern-tex*
     lua/tern/tex.lua reads a small subset of KaTeX: Greek letters and
@@ -503,10 +605,17 @@ TeX as Unicode                                                      *tern-tex*
         \frac{a+b}{c}         (a + b)/c
         \sum_{i=1}^n i        ∑ᵢ₌₁ⁿ i
         \forall x\in A        ∀x ∈ A
+    Aligned environments are read line by line when each row is on a line
+    of its own, every row but the last ending in `\\`, between `\begin`
+    and `\end` lines: align, align*, aligned, split, alignat, alignat*,
+    alignedat (columns aligned right and left, around each `&`), gather,
+    gather*, gathered (rows centred), and equation, equation*, alone or
+    around one of the others. `\nonumber` and `\notag` show nothing.
     When any part of a formula has no faithful Unicode form, such as a
-    matrix or a superscript q, the formula gets no Unicode text, because a
-    partial conversion would misread it. A formula whose Unicode form reads
-    the same as its source gets none either.
+    matrix, cases, `\tag` or a superscript q, the formula gets no Unicode
+    text, because a partial conversion would misread it, and its source
+    stays. Beside the source, a formula whose Unicode form reads the same
+    as the source gets none either; in its place, `$x$` reads `x`.
 
 When it is drawn
     On each outline: when the note opens, and after each analysis, 150 ms
@@ -526,6 +635,18 @@ TernVirtRef                                                   *hl-TernVirtRef*
     What a reference reads as. Default: links to Comment.
 TernVirtMath                                                 *hl-TernVirtMath*
     Math as Unicode. Default: links to Comment.
+TernVirtName                                                 *hl-TernVirtName*
+    The name of a block without a label, in place of its opener. Default:
+    links to Comment.
+TernVirtId                                                     *hl-TernVirtId*
+    An id in place of the attributes that hold it. Default: links to
+    Identifier.
+TernVirtVerbatim                                         *hl-TernVirtVerbatim*
+    The name of a block with a verbatim body, in place of its opener.
+    Default: links to PreProc.
+TernVerbatim                                                 *hl-TernVerbatim*
+    The background of a block with a verbatim body, over its whole lines.
+    Default: links to ColorColumn.
 
 They are defined as defaults, so a colorscheme or your own setting wins, and
 they come back after |:colorscheme|. For example: >lua

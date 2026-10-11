@@ -170,7 +170,10 @@ return {
       return
     end
     T.eq(vim.wo.foldmethod, 'expr', 'foldmethod')
-    T.eq(vim.wo.foldexpr, 'v:lua.vim.lsp.foldexpr()', 'foldexpr')
+    T.eq(vim.wo.foldexpr, "v:lua.require'tern.lsp'.serverfold(v:lnum)", 'foldexpr')
+    T.eq(vim.wo.foldtext, "v:lua.require'tern.head'.foldtext()", 'foldtext')
+    T.eq(vim.wo.foldminlines, 0, 'a one-line head can close')
+    T.ok(vim.wo.fillchars:find('fold: ', 1, true), 'no dots after a closed fold: ' .. vim.wo.fillchars)
     T.ok(vim.wo.foldlevel >= 20, 'nothing starts folded')
     T.wait(5000, function()
       return vim.fn.foldlevel(10) == 3
@@ -179,6 +182,8 @@ return {
     T.eq(vim.lsp.foldexpr(6), '>2', 'the theorem opens a fold')
     T.eq({ vim.fn.foldlevel(2), vim.fn.foldlevel(7), vim.fn.foldlevel(12), vim.fn.foldlevel(14) }, { 1, 2, 2, 1 }, 'levels')
     T.eq(vim.fn.foldclosed(7), -1, 'open')
+    T.eq(require('tern.lsp').serverfold(1), '>2', 'the head, line 1, is a fold of its own')
+    T.eq(require('tern.lsp').serverfold(2), vim.lsp.foldexpr(2), 'the server folds the rest')
   end) },
 
   { 'completion offers a name after :::', clean(function(T)
@@ -285,7 +290,8 @@ return {
     for l = 1, 19 do
       levels[l] = vim.fn.foldlevel(l)
     end
-    T.eq(levels, { 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2 }, 'levels; # in a fence is no heading')
+    T.eq(levels, { 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2 }, 'levels: the head, then by headings; # in a fence is no heading')
+    T.eq({ lsp.foldexpr(1), lsp.foldexpr(2) }, { '>2', '>1' }, 'the head is a fold of its own, before the first heading')
   end) },
 
   { 'a command that exits at once is not restarted', clean(function(T)

@@ -8,6 +8,8 @@
 --   client(buf)     the tern client attached to the buffer, or nil
 --   lexical(buf)    fold by headings, without a server
 --   foldexpr(lnum)  the 'foldexpr' of lexical()
+--   serverfold(lnum) the 'foldexpr' with a server: its folds, and the head's
+--   folding(win)    whether the window folds a note this way
 -- After each outline it fires User TernOutline with data = {buf = buf}.
 -- When no server can start it says why once a session, folds by headings and
 -- goes on. A server that crashes is restarted once.
@@ -24,10 +26,10 @@ local notified = false
 M.restart_window = 60000
 
 local EXPR = {
-  lsp = 'v:lua.vim.lsp.foldexpr()',
+  lsp = "v:lua.require'tern.lsp'.serverfold(v:lnum)",
   lexical = "v:lua.require'tern.lsp'.foldexpr(v:lnum)",
 }
-local FOLDTEXT = vim.api.nvim_get_option_info2('foldtext', {}).default
+local FOLDTEXT = "v:lua.require'tern.head'.foldtext()"
 
 local function notify(msg, level)
   vim.notify('tern.nvim: ' .. msg, level or vim.log.levels.WARN)
@@ -53,16 +55,24 @@ end
 
 -- ---------------------------------------------------------------- folding
 
--- Fold levels by heading, outside fences; the head (up to the tern.js line)
--- is level 0.
+-- The head's fold: its lines, up to the tern.js line, are a fold of their
+-- own, inside one more of the same lines. tern.render closes the inner fold;
+-- the outer one stays open, so that the folds after it, which take the state
+-- of the fold before them when they appear, are not closed with it.
+local function head(lnum)
+  return lnum == 1 and '>2' or 2
+end
+
+-- Fold levels by heading, outside fences, after the head's fold.
 local function levels(buf)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-  local d = require('tern.detect').buffer(buf)
-  local start = d and d.lnum or 0
+  local start = require('tern.head').lines(buf) or 0
   local out, depth = {}, 0
   local fence, fence_len
   for i, l in ipairs(lines) do
-    if i > start then
+    if i <= start then
+      out[i] = head(i)
+    else
       if fence then
         local f = l:match('^%s*([`~]+)%s*$')
         if f and #f >= fence_len and f == fence:rep(#f) then
@@ -95,6 +105,20 @@ function M.foldexpr(lnum)
   return c.levels[lnum or vim.v.lnum] or 0
 end
 
+function M.serverfold(lnum)
+  lnum = lnum or vim.v.lnum
+  local start = require('tern.head').lines(0)
+  if start and lnum <= start then
+    return head(lnum)
+  end
+  return vim.lsp.foldexpr(lnum)
+end
+
+function M.folding(win)
+  local wo = vim.wo[win]
+  return wo.foldmethod == 'expr' and (wo.foldexpr == EXPR.lsp or wo.foldexpr == EXPR.lexical)
+end
+
 -- Window-local, as :setlocal, so other buffers in the window keep their own.
 -- A window already folding this way keeps its foldlevel.
 local function apply_folds(win, buf)
@@ -110,6 +134,12 @@ local function apply_folds(win, buf)
   wo.foldexpr = EXPR[mode]
   wo.foldlevel = 99
   wo.foldtext = FOLDTEXT
+  wo.foldminlines = 0 -- a one-line head folds too
+  -- Spaces, not dots, after a closed fold's text, unless 'fillchars' says.
+  local fill = vim.wo[win].fillchars
+  if not fill:find('fold:') then
+    wo.fillchars = (fill == '' and '' or fill .. ',') .. 'fold: '
+  end
 end
 
 local function set_folds(buf, mode)

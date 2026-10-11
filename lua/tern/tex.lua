@@ -2,6 +2,8 @@
 -- Simple TeX as Unicode, for showing math in the editor.
 --   unicode(src) -> string, or nil when any part of src has no faithful
 --   Unicode form: a partial conversion would misread the formula.
+--   lines(list) -> display math TeX lines as Unicode line by line, or nil:
+--   one line, or an aligned environment written one row a line.
 -- It reads a small subset of KaTeX: Greek and symbols, function names,
 -- scripts Unicode has (x^2, x_i, x^{-1}), \mathbb and the other alphabets,
 -- \frac and \sqrt written on one line, accents on one letter, \text,
@@ -491,19 +493,138 @@ function render(atoms, tight)
   return table.concat(out)
 end
 
+local function convert(src)
+  return render((parse_list(src, 1, nil)))
+end
+
 function M.unicode(src)
   if type(src) ~= 'string' then
     return nil
   end
   -- Any error is a formula this cannot show, never the caller's problem.
-  local ok, result = pcall(function()
-    return render((parse_list(src, 1, nil)))
-  end)
+  local ok, result = pcall(convert, src)
   if not ok then
     return nil
   end
   result = vim.trim(result)
   return result ~= '' and result or nil
+end
+
+-- Environments shown row by row: how their columns align (rl: right, left,
+-- repeated; c: one centred column), the space between column pairs, and
+-- what may follow \begin{name}. equation holds one row, or one of these.
+local ENV = {}
+local NONE, PLACE, COUNT = { '^$' }, { '^$', '^%[[tcb]%]$' }, { '^{%s*%d+%s*}$' }
+for _, name in ipairs({ 'align', 'align*', 'split' }) do
+  ENV[name] = { cols = 'rl', gap = '    ', arg = NONE }
+end
+ENV.aligned = { cols = 'rl', gap = '    ', arg = PLACE }
+for _, name in ipairs({ 'alignat', 'alignat*', 'alignedat' }) do
+  ENV[name] = { cols = 'rl', gap = '', arg = COUNT }
+end
+for _, name in ipairs({ 'gather', 'gather*' }) do
+  ENV[name] = { cols = 'c', arg = NONE }
+end
+ENV.gathered = { cols = 'c', arg = PLACE }
+for _, name in ipairs({ 'equation', 'equation*' }) do
+  ENV[name] = { cols = 'c', arg = NONE, one = true }
+end
+
+-- A row written on one line: its cells, split at the &s outside braces, and
+-- whether it ends with \\ (and a [space]). Anything after that \\ fails,
+-- so a line holds at most one row.
+local function row(line)
+  local cells, depth, start, i = {}, 0, 1, 1
+  while i <= #line do
+    local c = line:sub(i, i)
+    if c == '\\' then
+      if depth == 0 and line:sub(i + 1, i + 1) == '\\' then
+        if not (line:find('^%s*$', i + 2) or line:find('^%s*%[[^%]]*%]%s*$', i + 2)) then
+          fail()
+        end
+        cells[#cells + 1] = line:sub(start, i - 1)
+        return cells, true
+      end
+      i = i + 1
+    elseif c == '{' then
+      depth = depth + 1
+    elseif c == '}' then
+      depth = depth - 1
+    elseif c == '&' and depth == 0 then
+      cells[#cells + 1] = line:sub(start, i - 1)
+      start = i + 1
+    end
+    i = i + 1
+  end
+  cells[#cells + 1] = line:sub(start)
+  return cells, false
+end
+
+local function environment(lines)
+  local name, arg = vim.trim(lines[1]):match('^\\begin%s*{(%a+%*?)}(.*)$')
+  local env = ENV[name] or fail()
+  arg = vim.trim(arg)
+  if not vim.iter(env.arg):any(function(pat)
+    return arg:find(pat) ~= nil
+  end) or not vim.trim(lines[#lines]):find('^\\end%s*{' .. vim.pesc(name) .. '}$') then
+    fail()
+  end
+  if env.one and #lines > 3 then
+    -- equation around an aligned environment.
+    local inner = environment(vim.list_slice(lines, 2, #lines - 1))
+    table.insert(inner, 1, '')
+    inner[#inner + 1] = ''
+    return inner
+  end
+  local rows, widths = {}, {}
+  for i = 2, #lines - 1 do
+    local cells, broken = row(lines[i])
+    if (broken and env.one) or (not broken and i < #lines - 1) or (env.cols == 'c' and #cells > 1) then
+      fail()
+    end
+    for j, cell in ipairs(cells) do
+      cell = cell:gsub('\\nonumber%f[%A]', ''):gsub('\\notag%f[%A]', '')
+      -- A right-hand cell starts after an empty group, as amsmath sets it:
+      -- &= b reads " = b".
+      cells[j] = convert((env.cols == 'rl' and j % 2 == 0) and '{}' .. cell or cell)
+      widths[j] = math.max(widths[j] or 0, vim.api.nvim_strwidth(cells[j]))
+    end
+    rows[#rows + 1] = cells
+  end
+  local out = { '' }
+  for _, cells in ipairs(rows) do
+    local parts = {}
+    for j, text in ipairs(cells) do
+      local pad = widths[j] - vim.api.nvim_strwidth(text)
+      if env.cols == 'c' then
+        text = (' '):rep(math.floor(pad / 2)) .. text
+      elseif j % 2 == 1 then
+        parts[#parts + 1] = j > 1 and env.gap or nil
+        text = (' '):rep(pad) .. text
+      else
+        text = text .. (' '):rep(pad)
+      end
+      parts[#parts + 1] = text
+    end
+    out[#out + 1] = (table.concat(parts):gsub('%s+$', ''))
+  end
+  -- Nothing to show: the source says more.
+  if table.concat(out) == '' then
+    fail()
+  end
+  out[#out + 1] = ''
+  return out
+end
+
+function M.lines(lines)
+  if type(lines) ~= 'table' or #lines == 0 then
+    return nil
+  elseif #lines == 1 then
+    local u = M.unicode(lines[1])
+    return u and { u } or nil
+  end
+  local ok, result = pcall(environment, lines)
+  return ok and result or nil
 end
 
 return M
