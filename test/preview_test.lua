@@ -237,6 +237,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await poll(() => document.body.textContent.includes('Changed in Neovim'));
     await sleep(300);
     say('STEP2', await state());
+    await poll(() => document.body.textContent.includes('Typed, not written'));
+    await sleep(300);
+    say('TYPED', await state());
     await poll(() => document.title === 'Live 2' && !window.__marker && window.tern && document.querySelector('main.tern'));
     await sleep(300);
     const s3 = await state();
@@ -259,7 +262,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 ]==]
 
 local function browser_case(which)
-  return case('in ' .. which .. ': positions match, a body change renders in place, a head change or a restart reloads', function(T)
+  return case('in ' .. which .. ': positions match, a body change renders in place, written or not, a head change or a restart reloads', function(T)
     local tern_root = T.tern_root()
     local node_path, why = playwright()
     if not tern_root or not node_path then
@@ -343,6 +346,14 @@ local function browser_case(which)
     T.ok(s2.text:find('Changed in Neovim', 1, true), 'the new text')
     T.eq({ panel_lines(s2) }, { opener - 1, opener + 2 }, 'the panel after the refresh')
 
+    -- Typing without writing renders in place too.
+    vim.api.nvim_buf_set_lines(note_buf, 4, 4, false, { 'Typed, not written.', '' })
+    vim.api.nvim_exec_autocmds('TextChanged', { buffer = note_buf })
+    local typed = step('TYPED')
+    T.eq({ typed.marker, typed.y }, { 42, 1500 }, 'unsaved: the same document, the scroll kept')
+    T.ok(typed.text:find('Typed, not written', 1, true), 'the unsaved text')
+    T.eq({ panel_lines(typed) }, { opener + 1, opener + 4 }, 'the panel follows the buffer')
+
     -- A head change reloads, and the scroll comes back.
     vim.api.nvim_buf_set_lines(note_buf, 1, 2, false, { '<title>Live 2</title>' })
     vim.cmd('silent write')
@@ -350,7 +361,7 @@ local function browser_case(which)
     T.eq(s3.marker, nil, 'reloaded')
     T.eq(s3.title, 'Live 2', 'the new head')
     T.eq(s3.y, 1500, 'the scroll restored')
-    T.eq({ panel_lines(s3) }, { opener - 1, opener + 2 }, 'the panel after the reload')
+    T.eq({ panel_lines(s3) }, { opener + 1, opener + 4 }, 'the panel after the reload')
 
     -- The server goes away and comes back on its port: the page reloads.
     local port = P.info().port
@@ -640,19 +651,103 @@ return {
     T.eq(P.info(), nil, 'nothing runs')
   end),
 
-  case('the browser is opened with preview.browser, and an unsaved buffer is pointed out', function(T)
+  case('the browser is opened with preview.browser', function(T)
     local dir = project(T)
     local log = dir .. '/opened.txt'
     require('tern').setup({ lsp = false, preview = { open = true, browser = { 'sh', '-c', 'printf %s "$1" > ' .. log, 'sh' } } })
     vim.cmd.edit(dir .. '/notes/a.html')
-    vim.api.nvim_buf_set_lines(0, -1, -1, false, { 'unsaved' })
     local url = P.start()
     T.wait(3000, function()
       return uv.fs_stat(log) and read(log) ~= ''
     end, 'the browser command ran')
     T.eq(read(log), url, 'with the URL')
-    T.ok(last_msg(T):find('write the buffer', 1, true), 'unsaved: ' .. last_msg(T))
+  end),
+
+  case('a modified note is served from its buffer, until it is written, reverted or unloaded', function(T)
+    local dir = project(T)
+    local file = dir .. '/notes/a.html'
+    vim.cmd.edit(file)
+    local buf = vim.api.nvim_get_current_buf()
+    vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'Before the preview.' })
+    T.ok(P.start(), 'started')
+    T.ok(not last_msg(T):find('write the buffer', 1, true), 'nothing to write: ' .. last_msg(T))
+    local raw = function()
+      return req(T, '/__tern/raw/notes/a.html').body
+    end
+    T.eq(raw(), NOTE .. 'Before the preview.\n', 'modified before :TernPreview: served at once')
+    local es = events(T)
+    local function typed(lines)
+      vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
+      vim.api.nvim_exec_autocmds('TextChanged', { buffer = buf })
+    end
+    local function event(n, what)
+      T.wait(2000, function()
+        return #es.events() >= n
+      end, what)
+      T.eq(es.events()[n], { { path = '/notes/a.html', note = true } }, what)
+    end
+
+    typed({ 'One.' })
+    typed({ 'Two.' })
+    event(1, 'one event for changes in a row')
+    vim.wait(300)
+    T.eq(#es.events(), 1, 'and no other')
+    local text = NOTE .. 'Before the preview.\nOne.\nTwo.\n'
+    T.eq(raw(), text, 'the raw note: the buffer')
+    local page = req(T, '/notes/a.html').body
+    T.ok(page:find('Two.', 1, true) and page:find('/__tern/live.js', 1, true), 'the page: the buffer, with the live script')
+    T.eq(read(file), NOTE, 'the file is not touched')
+
+    vim.cmd('silent edit!')
+    vim.api.nvim_exec_autocmds('TextChanged', { buffer = buf })
+    event(2, 'reverted')
+    T.eq(raw(), NOTE, 'reverted: the file')
+
+    typed({ 'Three.' })
+    event(3, 'changed again')
+    vim.cmd('silent write')
+    event(4, 'written')
+    T.eq({ raw(), read(file) }, { NOTE .. 'Three.\n', NOTE .. 'Three.\n' }, 'written: the file')
+
+    typed({ 'Four.' })
+    event(5, 'changed again')
+    vim.bo[buf].fileformat = 'dos'
+    vim.bo[buf].fixeol, vim.bo[buf].eol = false, false
+    vim.api.nvim_exec_autocmds('TextChanged', { buffer = buf })
+    event(6, 'the file format')
+    T.eq(raw(), (NOTE .. 'Three.\nFour.'):gsub('\n', '\r\n'), 'as :write would: CR LF, no final line break')
+    vim.cmd('silent bwipeout!')
+    event(7, 'unloaded')
+    T.eq(raw(), NOTE .. 'Three.\n', 'unloaded: the file')
+
+    -- Not a note: from disk, and nothing until it is written.
+    vim.cmd.edit(dir .. '/style.css')
+    vim.api.nvim_buf_set_lines(0, -1, -1, false, { 'p {}' })
+    vim.api.nvim_exec_autocmds('TextChanged', { buffer = 0 })
+    vim.wait(400)
+    T.eq(#es.events(), 7, 'no event for CSS')
+    T.eq(req(T, '/style.css').body, 'body { color: red }\n', 'CSS from disk')
     vim.cmd('silent! %bwipeout!')
+    es.close()
+  end),
+
+  case('with preview.update write, only writes refresh the page', function(T)
+    local dir = project(T)
+    require('tern').setup({ lsp = false, render = { enabled = false }, preview = { open = false, update = 'write' } })
+    vim.cmd.edit(dir .. '/notes/a.html')
+    vim.api.nvim_buf_set_lines(0, -1, -1, false, { 'unsaved' })
+    T.ok(P.start(), 'started')
+    T.ok(last_msg(T):find('write the buffer', 1, true), 'unsaved: ' .. last_msg(T))
+    local es = events(T)
+    vim.api.nvim_exec_autocmds('TextChanged', { buffer = 0 })
+    vim.wait(400)
+    T.eq({ #es.events(), req(T, '/__tern/raw/notes/a.html').body }, { 0, NOTE }, 'no event; the file')
+    vim.cmd('silent write')
+    T.wait(2000, function()
+      return #es.events() == 1
+    end, 'an event on write')
+    vim.cmd('silent! %bwipeout!')
+    es.close()
   end),
 
   case('stop closes the server and every connection', function(T)

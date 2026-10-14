@@ -39,7 +39,7 @@ tern.nvim is the Neovim side of Tern. It:
 • draws virtual text from the server's outline: block labels, what each
   reference reads as, equation numbers, and simple TeX as Unicode
   (|tern-render|);
-• serves a live preview that refreshes the browser when you write
+• serves a live preview that refreshes the browser as you type
   (|tern-preview|);
 • writes a note's first line, and runs `tern check` and `tern build`
   (|tern-commands|);
@@ -173,6 +173,7 @@ The defaults: >lua
         port = 0,
         open = true,
         browser = nil,
+        update = 'change',
       },
     })
 <
@@ -257,6 +258,13 @@ preview.browser                                  *tern-option-preview.browser*
     The command that opens the page, with the URL added as its last
     argument: 'firefox', or { 'firefox', '--new-window' }. It runs detached.
     With nil, the page opens with |vim.ui.open()|.
+
+preview.update                                    *tern-option-preview.update*
+    String. Default: 'change'.
+    When the page of a note refreshes. With 'change', it follows the note's
+    buffer as you type, written or not: a modified note is served from its
+    buffer (|tern-preview-unsaved|). With 'write', it refreshes when you
+    write, and the server serves the files on disk only.
 
 ==============================================================================
 5. COMMANDS                                                    *tern-commands*
@@ -346,7 +354,8 @@ preview.browser                                  *tern-option-preview.browser*
 :TernPreview                                                    *:TernPreview*
     Serves the current buffer's file over HTTP, prints its URL and, with
     |tern-option-preview.open|, opens it in a browser. The page refreshes
-    each time you write the note. The file must be written first. See
+    as you change the note, and each time you write it
+    (|tern-option-preview.update|). The file must exist on disk. See
     |tern-preview|.
 
 :TernPreviewStop                                            *:TernPreviewStop*
@@ -744,7 +753,8 @@ they come back after |:colorscheme|. For example: >lua
 
 |:TernPreview| serves the note's project over HTTP from inside Neovim, with
 Neovim's own event loop. It needs no Node and no other program. It refreshes
-the browser each time you write a file.
+the browser as you change a note, before you write it, and each time you
+write a file.
 
 How it works                                                *tern-preview-how*
 
@@ -792,6 +802,19 @@ one event. Each page then acts on it:
 A page whose connection drops reconnects, waiting longer each time, up to
 8 seconds, and reloads once the server is back.
 
+                                                        *tern-preview-unsaved*
+Unsaved notes. With |tern-option-preview.update| 'change', a note whose
+buffer is modified is served from the buffer instead of its file: the
+page, and the raw note it fetches to refresh. The text is what |:write|
+would put on disk, with the buffer's 'fileformat', 'eol' and 'bomb', taken
+150 ms after the last change (|TextChanged|, |TextChangedI|). Its pages
+then get the same event as for a write, and refresh in place the same way.
+Once the buffer is written, is back to its file (|:undo| to the written
+text, |:edit!|) or is unloaded, the file is served again. A note that was
+modified before |:TernPreview| is served from its buffer from the first
+request. Only notes are served this way: CSS, add-ons and images refresh
+when you write them. The file on disk is never changed.
+
 Security                                               *tern-preview-security*
 
 The server is meant for your own browser on this machine:
@@ -816,7 +839,11 @@ The server is meant for your own browser on this machine:
 
 Limits                                                   *tern-preview-limits*
 
-• It serves the files on disk: write the buffer to see your changes.
+• Unsaved changes show for notes only, and with
+  |tern-option-preview.update| 'write' not at all: write the buffer.
+• Each refresh renders the whole note again in the browser, KaTeX
+  included, so a large note's page lags behind fast typing. Changes made
+  while it renders are taken in one more render.
 • Only writes in this Neovim refresh the page. When another program changes
   a file, such as a build step or git, reload the page yourself.
 • There is no authentication and no TLS. With |tern-option-preview.host|
@@ -1141,7 +1168,9 @@ is a function, or a list without `lsp`, they use the other sources, and the
 health check warns when none finds the CLI.
 
 The preview does not change ~
-• Write the buffer: the preview serves the file on disk.
+• With |tern-option-preview.update| 'write', or for a file that is not a
+  note (CSS, an add-on), write the buffer: the preview serves the file on
+  disk.
 • Changes made by other programs do not refresh the page; reload it.
 • The page reloads instead of refreshing in place when the tern.js tag is
   not closed on its own line, or when the head changed.

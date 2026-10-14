@@ -20,12 +20,13 @@ M.defaults = {
     math = true, -- simple TeX shown as Unicode beside the formula
     conceal = true, -- math, block and inline element syntax drawn in place of the source, but under the cursor
   },
-  -- :TernPreview, a local server that reloads the browser on save.
+  -- :TernPreview, a local server that refreshes the browser as you type.
   preview = {
     host = '127.0.0.1',
     port = 0, -- 0: any free port
     open = true, -- open the page in a browser
     browser = nil, -- the command to open it with; nil: vim.ui.open
+    update = 'change', -- 'change': the page follows the note's buffer, written or not; 'write': on each write
   },
 }
 

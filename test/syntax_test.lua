@@ -376,7 +376,7 @@ return {
       return
     end
     check({
-      { 'window.TERN', 'ternHead' }, { '<script src="../tern.js">', 'ternHead' }, { 'title: Notes', 'ternMetaKey' },
+      { 'window.TERN', 'ternHead' }, { '<script src="../tern.js"', 'ternHead' }, { 'title: Notes', 'ternMetaKey' },
       { '# Notes on iterators', 'ternHeading' }, { 'function* fib', 'ternFenceCode_javascript' },
       { 'A lazy Fibonacci', 'ternBlockTitle' }, { '#lst-fib', 'ternAttrId' }, { '@lst-fib yields', 'ternRef' },
       { '`` ` ``', 'ternCode' }, { '``a`b``', 'ternCode' }, { 'Vec<T> and', '!ternHtmlInline', 3 },

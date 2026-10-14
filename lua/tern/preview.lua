@@ -1,7 +1,8 @@
 -- SPDX-License-Identifier: MIT
 -- :TernPreview serves the current note's project over HTTP from inside
 -- Neovim (vim.uv TCP, a minimal HTTP/1.1) and refreshes the browser when a
--- file under it is written.
+-- file under it is written, and, with preview.update 'change', as a note's
+-- buffer changes.
 --   M.start(args)  serve the current buffer's file, print its URL, open a browser
 --   M.stop(quiet)  close the server and every connection (also on VimLeavePre)
 --   M.info()       {root, url, host, port, clients} of the running server, or nil
@@ -31,6 +32,14 @@
 -- the runtime counts the same lines before the note, so the diagnostics
 -- panel's file lines stay right. The script listens on /__tern/events
 -- (Server-Sent Events); see LIVE for what it does with each write.
+--
+-- Unsaved notes. With preview.update 'change', a note's buffer that is
+-- modified is served in place of its file: the page and /__tern/raw get
+-- the buffer's text as :write would put it on disk, taken typing_ms after
+-- the last change (the request handlers run in luv callbacks, which cannot
+-- read buffers), and its pages get the same event as for a write. Once
+-- the buffer is written, back to its file (undo, :edit!) or unloaded, the
+-- file is served again.
 local uv = vim.uv
 local bit = require('bit')
 local config = require('tern.config')
@@ -47,6 +56,7 @@ local LIMITS = {
   conns = 64, -- open connections, event streams included
   linger_ms = 1000, -- after a response, for the client to close first
   note_bytes = 16 * 1024 * 1024, -- larger .html files are served unchanged
+  typing_ms = 150, -- after a note's buffer last changed, before it is served
 }
 M._limits = LIMITS
 local CHUNK = 64 * 1024
@@ -96,8 +106,8 @@ local REASONS = {
   [500] = 'Internal Server Error',
 }
 
--- The browser side. On a write of a file under the root, the server sends
--- {"changed": [{path, note}]}. For this page's own file, it fetches the raw
+-- The browser side. On a write of a file under the root, or a change to a
+-- note's buffer, the server sends {"changed": [{path, note}]}. For this page's own file, it fetches the raw
 -- file and splits it as the runtime does: the note is everything after the
 -- tern.js line (data-line), with CR LF and CR read as LF and NUL as U+FFFD,
 -- like the HTML parser's input. If the lines up to it still hash to
@@ -543,6 +553,11 @@ local function file(conn, path, h, no_body, raw)
     end
     return fail(conn, rel, nil, no_body)
   end
+  local live = srv.live[real]
+  if live then
+    local body = raw and live.text or inject(live.text, '/' .. encode(rel)) or live.text
+    return send(conn, '200 OK', raw and 'text/plain; charset=utf-8' or TYPES.html, body, nil, no_body)
+  end
   if raw then
     return stream(conn, real, st, h, 'text/plain; charset=utf-8', no_body)
   end
@@ -669,7 +684,7 @@ local function shutdown(srv)
   for conn in pairs(srv.conns) do
     close(conn)
   end
-  for _, h in ipairs({ srv.ping, srv.flush, srv.tcp }) do
+  for _, h in ipairs({ srv.ping, srv.flush, srv.typed, srv.tcp }) do
     if not h:is_closing() then
       h:close()
     end
@@ -697,7 +712,7 @@ end
 local function listen(root, real, prefer)
   local o = config.options.preview or {}
   local host, port = o.host or '127.0.0.1', tonumber(o.port) or 0
-  local srv = { root = root, real = real, host = host, conns = {}, clients = {}, nconns = 0, pending = {} }
+  local srv = { root = root, real = real, host = host, conns = {}, clients = {}, nconns = 0, pending = {}, live = {}, dirty = {} }
   local addr = host
   if not host:find(':', 1, true) and not host:match('^[%d.]+$') then
     local ai = uv.getaddrinfo(host, nil, { socktype = 'stream' })
@@ -731,6 +746,7 @@ local function listen(root, real, prefer)
     end
   end
   srv.flush = uv.new_timer()
+  srv.typed = uv.new_timer()
   srv.ping = uv.new_timer()
   srv.ping:start(PING_MS, PING_MS, function()
     broadcast(srv, ': ping\n\n')
@@ -738,31 +754,122 @@ local function listen(root, real, prefer)
   return srv
 end
 
--- A written file under the root: one event for the writes of the next
--- 30 ms (:wall), each file with whether it is a note. A uv timer, not
--- vim.defer_fn, so that the event goes out while Neovim waits on fast
--- events only (vim.system():wait()); the JSON is built by hand, the paths
--- being percent-encoded already.
-local function written(buf, name)
-  local srv = S
-  local real = srv and name ~= '' and uv.fs_realpath(name)
-  local rel = real and inside(srv, norm(real))
-  if not rel or rel == '' or dotted(rel) then
-    return
-  end
-  local ext = (rel:match('%.([^./]+)$') or ''):lower()
-  srv.pending['/' .. encode(rel)] = (ext == 'html' or ext == 'htm') and detect.buffer(buf) ~= nil
+-- One event for the files queued in the next 30 ms (:wall), each with
+-- whether it is a note. A uv timer, not vim.defer_fn, so that the event goes
+-- out while Neovim waits on fast events only (vim.system():wait()); the
+-- JSON is built by hand, the paths being percent-encoded already.
+local function queue(srv, path, note)
+  srv.pending[path] = note
   if srv.flush:is_active() then
     return
   end
   srv.flush:start(30, 0, function()
     local list = {}
-    for path, note in pairs(srv.pending) do
-      list[#list + 1] = ('{"path":"%s","note":%s}'):format(path, tostring(note))
+    for p, n in pairs(srv.pending) do
+      list[#list + 1] = ('{"path":"%s","note":%s}'):format(p, tostring(n))
     end
     srv.pending = {}
     broadcast(srv, 'data: {"changed":[' .. table.concat(list, ',') .. ']}\n\n')
   end)
+end
+
+-- The file name, if the server serves it: its real path and its path under
+-- the root.
+local function served(srv, name)
+  local real = name ~= '' and uv.fs_realpath(name)
+  local rel = real and inside(srv, norm(real))
+  if rel and rel ~= '' and not dotted(rel) then
+    return norm(real), rel
+  end
+end
+
+local function note_ext(rel)
+  local ext = (rel:match('%.([^./]+)$') or ''):lower()
+  return ext == 'html' or ext == 'htm'
+end
+
+-- A buffer's text as :write puts it on disk: its line breaks, a final one
+-- unless 'eol' and 'fixeol' are off, and a BOM with 'bomb'.
+local function text_of(buf)
+  local bo = vim.bo[buf]
+  local nl = ({ dos = '\r\n', mac = '\r' })[bo.fileformat] or '\n'
+  local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), nl)
+  if bo.eol or (bo.fixeol and not bo.binary) then
+    text = text .. nl
+  end
+  return (bo.bomb and not bo.binary and '\239\187\191' or '') .. text
+end
+
+-- Serves buf's file from disk again, telling its pages.
+local function forget(srv, buf)
+  for real, l in pairs(srv.live) do
+    if l.buf == buf then
+      srv.live[real] = nil
+      queue(srv, l.path, true)
+    end
+  end
+end
+
+-- The note buffers changed since the last update: a modified one is served
+-- in place of its file, any other from disk; their pages are told, unless
+-- quiet.
+local function update(srv, quiet)
+  if S ~= srv then
+    return
+  end
+  local dirty = srv.dirty
+  srv.dirty = {}
+  for buf in pairs(dirty) do
+    forget(srv, buf)
+    local real, rel
+    if vim.api.nvim_buf_is_loaded(buf) then
+      real, rel = served(srv, vim.api.nvim_buf_get_name(buf))
+    end
+    if real and note_ext(rel) and detect.buffer(buf) then
+      local path = '/' .. encode(rel)
+      local text = vim.bo[buf].modified and text_of(buf)
+      if text and #text <= LIMITS.note_bytes then
+        srv.live[real] = { buf = buf, path = path, text = text }
+      end
+      if not quiet then
+        queue(srv, path, true)
+      end
+    end
+  end
+end
+
+-- A buffer changed: served typing_ms after the last change.
+local function changed(buf)
+  local srv = S
+  if not srv or vim.bo[buf].buftype ~= '' then
+    return
+  end
+  srv.dirty[buf] = true
+  srv.typed:stop()
+  srv.typed:start(LIMITS.typing_ms, 0, function()
+    vim.schedule(function()
+      update(srv)
+    end)
+  end)
+end
+
+-- A file written under the root (name, which may not be buf's): served
+-- from disk, and its pages told.
+local function written(buf, name)
+  local srv = S
+  if not srv then
+    return
+  end
+  -- Its own file written, a modified buffer is served from disk again;
+  -- written elsewhere (:write other.html), it stays modified and served.
+  if config.options.preview.update ~= 'write' then
+    srv.dirty[buf] = true
+    update(srv)
+  end
+  local _, rel = served(srv, name)
+  if rel then
+    queue(srv, '/' .. encode(rel), note_ext(rel) and detect.buffer(buf) ~= nil)
+  end
 end
 
 local function open(url)
@@ -816,6 +923,31 @@ function M.start()
         written(a.buf, a.match)
       end,
     })
+    if config.options.preview.update ~= 'write' then
+      vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI', 'TextChangedP', 'BufFilePost' }, {
+        group = g,
+        callback = function(a)
+          changed(a.buf)
+        end,
+      })
+      vim.api.nvim_create_autocmd('BufUnload', {
+        group = g,
+        callback = function(a)
+          if S then
+            S.dirty[a.buf] = nil
+            forget(S, a.buf)
+          end
+        end,
+      })
+      -- Notes modified already are served from their buffers from the first
+      -- request; no page listens yet.
+      for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified then
+          S.dirty[b] = true
+        end
+      end
+      update(S, true)
+    end
     vim.api.nvim_create_autocmd('VimLeavePre', {
       group = g,
       callback = function()
@@ -829,10 +961,11 @@ function M.start()
   elseif dotted(rel) then
     return notify(('tern: %s is hidden (a name starting with a dot), which the preview does not serve'):format(rel), vim.log.levels.WARN)
   end
+  local live = config.options.preview.update ~= 'write'
   local url = S.base .. '/' .. encode(rel)
   local msg = moved and ('tern: the preview moved from %s to %s: %s'):format(vim.fn.fnamemodify(moved, ':~'), vim.fn.fnamemodify(S.root, ':~'), url)
     or 'tern: preview at ' .. url
-  if vim.bo[buf].modified then
+  if vim.bo[buf].modified and not live then
     msg = msg .. ' (write the buffer to show your changes)'
   end
   notify(msg)
