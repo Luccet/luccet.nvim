@@ -1,6 +1,6 @@
 -- SPDX-License-Identifier: MIT
--- :TernInit, :TernCheck, :TernBuild and :TernMove. Each takes the user
--- command's args.
+-- :TernInit, :TernCheck, :TernBuild, :TernMove and :TernSearch. Each takes
+-- the user command's args.
 --   init(args)   write the canonical first line at the top of the buffer, as
 --                `tern new` writes it (cli/commands.js newNote)
 --   check(args)  `tern check --json` on the paths, or the buffer's file, into
@@ -9,6 +9,8 @@
 --                beside the note, so its relative URLs still resolve
 --   move(args)   move the buffer's file, or FROM, to TO, with the link edits
 --                the server's workspace/willRenameFiles gives (tern mv's)
+--   search(args) `tern search --json` over the paths among the args, or the
+--                working directory, into the quickfix list
 local M = {}
 
 local INFO, WARN, ERROR = vim.log.levels.INFO, vim.log.levels.WARN, vim.log.levels.ERROR
@@ -235,6 +237,76 @@ function M.check(args)
   end, { cwd = cwd })
   if reason then
     say('tern: cannot run tern check: ' .. reason, ERROR)
+  end
+end
+
+-- ---------------------------------------------------------------- :TernSearch
+
+local SEARCH = 'tern search'
+
+local function is_dir(p)
+  local st = vim.uv.fs_stat(p)
+  return st and st.type == 'directory'
+end
+
+-- The args that name a file or a folder are the paths; the rest, in order,
+-- are the query. Without a path the working directory is searched.
+function M.search(args)
+  local buf = vim.api.nvim_get_current_buf()
+  local paths, query = {}, {}
+  for _, a in ipairs(args and args.fargs or {}) do
+    local p = expand(a)
+    if is_file(p) or is_dir(p) then
+      paths[#paths + 1] = p
+    else
+      query[#query + 1] = a
+    end
+  end
+  if #query == 0 then
+    return say('tern: give :TernSearch a word to search for', ERROR)
+  end
+  local words = table.concat(query, ' ')
+  local cwd = vim.fn.getcwd()
+  local argv = vim.list_extend({ 'search', '--json', words }, paths)
+  local _, reason = require('tern.cli').run(buf, argv, function(res)
+    local ok, hits = pcall(vim.json.decode, res.stdout or '', { luanil = { object = true, array = true } })
+    if res.code > 2 or not ok or type(hits) ~= 'table' then
+      return failure('search', res)
+    end
+    local list = {}
+    for _, h in ipairs(hits) do
+      local abs = h.file:match('^/') or h.file:match('^%a:[/\\]')
+      local heading = h.label or ''
+      if h.title and h.title ~= '' then
+        heading = heading .. ' ' .. h.title
+      end
+      list[#list + 1] = {
+        filename = vim.fs.normalize(abs and h.file or cwd .. '/' .. h.file),
+        lnum = h.line or 1,
+        col = 1,
+        end_lnum = h.endLine,
+        text = heading .. ': ' .. (h.snippet or ''),
+        user_data = { id = h.id, kind = h.kind, page = h.page, score = h.score },
+      }
+    end
+    local cur = vim.fn.getqflist({ title = 0 }).title or ''
+    local action = cur:sub(1, #SEARCH) == SEARCH and 'r' or ' '
+    local notes = own_lines(res.stderr, 'search')
+    if res.code == 2 then
+      return say(#notes > 0 and table.concat(notes, '\n') or vim.trim(res.stderr or ''), ERROR)
+    end
+    if #list > 0 or action == 'r' then
+      vim.fn.setqflist({}, action, { title = SEARCH .. ' ' .. words, items = list })
+    end
+    if #list > 0 then
+      vim.cmd('botright copen')
+      say(notes[#notes] or ('tern search: %d results'):format(#list))
+    else
+      say(notes[#notes] or 'tern search: no results', WARN)
+    end
+  end, { cwd = cwd })
+  if reason then
+    say('tern: cannot run tern search: ' .. reason, ERROR)
   end
 end
 

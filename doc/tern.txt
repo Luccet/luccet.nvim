@@ -1,8 +1,8 @@
 *tern.txt*  Neovim support for Tern notes
 
-Author:   OscarAC
+Author:   OzkrAC
 License:  MIT, see |tern-license|
-Tern:     https://github.com/OscarAC/tern
+Tern:     https://github.com/OzkrAC/tern
 
 ==============================================================================
 CONTENTS                                                       *tern-contents*
@@ -25,7 +25,7 @@ CONTENTS                                                       *tern-contents*
 ==============================================================================
 1. INTRODUCTION                                *tern* *tern.nvim* *tern-intro*
 
-Tern (https://github.com/OscarAC/tern) writes documents as HTML files. A
+Tern (https://github.com/OzkrAC/tern) writes documents as HTML files. A
 note's first line loads `tern.js`, and everything after that line is the
 note, written in Tern's markdown-like syntax. Opened in a browser, tern.js
 renders the note in place.
@@ -80,7 +80,7 @@ that must stay on one line: openers, leaves and table rows.
   commands.
 • Node 22 or later, as `node` on PATH.
 • The Tern CLI: tern-cli.js, from a checkout of
-  https://github.com/OscarAC/tern. See |tern-cli|.
+  https://github.com/OzkrAC/tern. See |tern-cli|.
 
 The language server, the virtual text, |:TernCheck| and |:TernBuild| need
 Node and the CLI. Everything else works without them: |tern-without-node|.
@@ -91,20 +91,20 @@ The plugin needs no other Lua plugin.
 
 lazy.nvim: >lua
     {
-      'OscarAC/tern.nvim',
+      'OzkrAC/tern.nvim',
       opts = {}, -- passed to require('tern').setup()
     }
 <
 packer.nvim: >lua
     use({
-      'OscarAC/tern.nvim',
+      'OzkrAC/tern.nvim',
       config = function()
         require('tern').setup({})
       end,
     })
 <
 Native packages (|packages|): >sh
-    git clone https://github.com/OscarAC/tern.nvim \
+    git clone https://github.com/OzkrAC/tern.nvim \
       ~/.local/share/nvim/site/pack/tern/start/tern.nvim
 <
 Then run `:helptags ALL` to index this help file.
@@ -116,7 +116,7 @@ commands, and the modules load when the first note opens or a command runs.
 The Tern CLI                                                        *tern-cli*
 
 Get Tern and make its CLI findable: >sh
-    git clone https://github.com/OscarAC/tern
+    git clone https://github.com/OzkrAC/tern
     cd tern && npm link     # puts `tern` on PATH
 <
 Instead of `npm link`, you can set $TERN_CLI to /path/to/tern/tern-cli.js,
@@ -310,6 +310,21 @@ preview.update                                    *tern-option-preview.update*
     one. Otherwise a run that finds problems adds a new list. A clean run
     says "tern check: no problems". A usage error, such as a path that does
     not exist, shows tern check's message.
+
+:TernSearch {word} ... [{path} ...]                              *:TernSearch*
+    Runs `tern search --json` for the words, over each {path}, a file or a
+    folder, or over the working directory when none is given: an argument
+    that names an existing file or folder is a path, the others are the
+    query. The hits go to the |quickfix| list, which opens when there are
+    any: one item per heading's section or named block with an id, at its
+    line, with "LABEL TITLE: passage" as its text and the block's id, kind,
+    page title and score in `user_data`. A word stands for the words it
+    begins, so `pythag` finds Pythagoras. The notes are read from disk.
+
+    The list's title is "tern search" and the words. When the current list
+    is a tern search list, a new search replaces it, even one that finds
+    nothing; otherwise a search that finds something adds a new list, and
+    one that finds nothing only says so.
 
 :TernBuild [{out}]                                                *:TernBuild*
     Runs `tern build FILE -o OUT` on the current buffer's file, in the
@@ -1180,7 +1195,7 @@ The preview does not change ~
 ==============================================================================
 14. LICENSE                                                     *tern-license*
 
-MIT License. Copyright (c) 2026 OscarAC. The full text is in the LICENSE
+MIT License. Copyright (c) 2026 OzkrAC. The full text is in the LICENSE
 file of this plugin.
 
  vim:tw=78:ts=8:ft=help:norl:

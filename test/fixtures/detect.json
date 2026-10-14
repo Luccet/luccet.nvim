@@ -31,8 +31,8 @@
     },
     {
       "why": "a URL on a CDN",
-      "line": "<script src=\"https://cdn.jsdelivr.net/gh/OscarAC/tern@1/tern.js\"></script>",
-      "tag": "<script src=\"https://cdn.jsdelivr.net/gh/OscarAC/tern@1/tern.js\">"
+      "line": "<script src=\"https://cdn.jsdelivr.net/gh/OzkrAC/tern@1/tern.js\"></script>",
+      "tag": "<script src=\"https://cdn.jsdelivr.net/gh/OzkrAC/tern@1/tern.js\">"
     },
     {
       "why": "single quotes",

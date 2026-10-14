@@ -127,6 +127,44 @@ return {
     T.ok(notices[#notices].msg:find('1 error, 1 warning', 1, true), notices[#notices].msg)
   end) },
 
+  { ':TernSearch fills the quickfix list with the hits, at their lines', scoped(function(T, notices)
+    local path, dir = note(T, '# Kernel\n\nA map has a kernel.\n\n:::aside{#py}\nPythagoras proved it with squares.\n:::\n')
+    if not path then
+      return
+    end
+    vim.fn.setqflist({}, 'f')
+    vim.cmd.edit(path)
+    vim.cmd.cd(dir)
+    vim.cmd('TernSearch pythag')
+    T.wait(10000, function()
+      return #vim.fn.getqflist() > 0
+    end, 'the quickfix list')
+    local qf = vim.fn.getqflist()
+    T.eq(#qf, 1, 'entries')
+    T.eq({ vim.api.nvim_buf_get_name(qf[1].bufnr), qf[1].lnum, qf[1].col }, { path, 6, 1 }, 'the hit at the block')
+    T.ok(qf[1].text:find('^aside: Pythagoras proved'), qf[1].text)
+    T.eq(qf[1].user_data.id, 'py', 'the id')
+    T.ok(vim.fn.getqflist({ title = 0 }).title:find('^tern search pythag'), 'title')
+    T.ok(vim.fn.getqflist({ winid = 0 }).winid ~= 0, 'the list is open')
+    T.ok(notices[#notices].msg:find('1 result', 1, true), notices[#notices].msg)
+    vim.cmd('TernSearch kernel ' .. dir)
+    T.wait(10000, function()
+      return (vim.fn.getqflist({ title = 0 }).title or ''):find('^tern search kernel') ~= nil
+    end, 'the list replaced')
+    T.eq({ #vim.fn.getqflist(), vim.fn.getqflist()[1].lnum }, { 1, 2 }, "the heading's section alone, at the heading")
+    vim.cmd('TernSearch nothingofthesort')
+    T.wait(10000, function()
+      return notices[#notices].msg:find('0 results', 1, true) ~= nil
+    end, 'the miss reported')
+    T.eq(#vim.fn.getqflist(), 0, 'the list replaced, as a new check replaces a check list')
+    local ok, err = pcall(vim.cmd, 'TernSearch')
+    T.ok(not ok and tostring(err):find('E471'), 'no words: an argument is required')
+    vim.cmd('TernSearch ' .. dir)
+    T.wait(10000, function()
+      return notices[#notices].msg:find('a word to search for', 1, true) ~= nil
+    end, 'a path alone refused')
+  end) },
+
   { ':TernCheck on a clean note says so', scoped(function(T, notices)
     local path = note(T, '# Kernel\n')
     if not path then
