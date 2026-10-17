@@ -15,7 +15,8 @@ tern.nvim is a client of `tern lsp`, Tern's language server. It has no grammar o
 - **Commands.** `:TernInit` writes a note's first line, `:TernCheck` sends `tern check` to the quickfix list, `:TernSearch` searches the notes by word into it, `:TernBuild` runs `tern build`, and `:TernMove` moves a file and fixes the links to it and in it.
 - **Highlighting** for the whole syntax, with fenced code highlighted in its language.
 - **`:checkhealth tern`** shows what the plugin found and why.
-- **Without Node**, detection, highlighting, folding by headings, `:TernInit` and the preview still work. The plugin says once why the server cannot start.
+- **Formatting with Neovim's own operators.** `=` lines up a list item's lines with its text, and `gq` wraps paragraphs only, never joining one with a heading or block opener above it and never touching code, math or raw HTML.
+- **Without Node**, detection, highlighting, formatting, folding by headings, `:TernInit` and the preview still work. The plugin says once why the server cannot start.
 
 ## Requirements
 

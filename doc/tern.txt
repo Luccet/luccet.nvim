@@ -16,11 +16,12 @@ CONTENTS                                                       *tern-contents*
    7. Virtual text ............................................. |tern-render|
    8. Preview ................................................. |tern-preview|
    9. Highlighting .......................................... |tern-highlight|
-  10. Health ................................................... |tern-health|
-  11. Without Node ....................................... |tern-without-node|
-  12. The API for users ........................................... |tern-api|
-  13. Troubleshooting ................................. |tern-troubleshooting|
-  14. License ................................................. |tern-license|
+  10. Formatting ............................................... |tern-format|
+  11. Health ................................................... |tern-health|
+  12. Without Node ....................................... |tern-without-node|
+  13. The API for users ........................................... |tern-api|
+  14. Troubleshooting ................................. |tern-troubleshooting|
+  15. License ................................................. |tern-license|
 
 ==============================================================================
 1. INTRODUCTION                                *tern* *tern.nvim* *tern-intro*
@@ -44,7 +45,9 @@ tern.nvim is the Neovim side of Tern. It:
   (|tern-preview|);
 • writes a note's first line, and runs `tern check` and `tern build`
   (|tern-commands|);
-• highlights the syntax (|tern-highlight|).
+• highlights the syntax (|tern-highlight|);
+• lines up a list item's lines with its text, with = and gq
+  (|tern-format|).
 
 The plugin is a client of `tern lsp`, with no grammar of its own. Positions,
 structure, diagnostics and folds come from the server, which runs the engine
@@ -1046,7 +1049,62 @@ region ternFenceCode_{name}. The variables are read when the syntax loads:
 set them in your config, or run `:set syntax=tern` after a change.
 
 ==============================================================================
-10. HEALTH                                                       *tern-health*
+10. FORMATTING                                                   *tern-format*
+
+The ftplugin sets Neovim's own formatting up for notes, so that = and gq
+line up a list item's lines with its text:
+    - A paragraph long enough             - A paragraph long enough
+    to go on to this line                   to go on to this line
+Nothing else formats a note: no command, nothing on write. The plugin keeps
+to changes that cannot change what the page shows, as the next paragraphs
+say.
+
+=                                                         *tern-format-indent*
+    Lines up each line that continues a paragraph with the paragraph's
+    first line, and a list item's or a footnote's with the text after its
+    marker (a task's after its box). `gg=G` does the whole note. Only
+    whitespace changes, and only on those lines: Tern has no indented code
+    and ignores indentation past a list item's column, and a line that
+    continues a paragraph does so at any indentation. A paragraph's first
+    line, any line that may start a block (a heading, a list item, a
+    quote, an opener, a table row, `$$`), and every line of the head, a
+    fence, display math, raw HTML and a verbatim body keep theirs. So does
+    a line after an item that does not hold a paragraph (`- # Title`),
+    since moving it would move it into the item, and a line that lazily
+    continues a quote, which no indentation reaches. Those lines keep
+    their whitespace as it is, tabs included: 'preserveindent' is on for
+    them while = runs, and back to your value after. As in any file, =
+    empties a line that holds only whitespace.
+
+gq                                                         *tern-format-gq*
+    Neovim's formatting, on paragraphs only: the lines of a list item go
+    under its text, those of a quote keep their `>`. It never joins a
+    paragraph with a line that is not one, such as the head, a heading or
+    an opener right above it, never joins across a hard break (a `\` at
+    the end of a line), and leaves verbatim lines alone, a table row's
+    continuation line included. Inline math is never broken over more than
+    the one line break it allows. When the wrap would begin a line with a
+    block's marker (`- 5`, `# 1`, `> x`, `$$`), end one with a new `\`, or
+    leave a list marker alone on its line (a first word wider than
+    'textwidth'), that line is joined back, longer than 'textwidth'.
+    Formatting twice changes nothing more. gw is Neovim's formatting
+    without these guards: it never uses 'formatexpr'.
+
+Soft wrap
+    With 'wrap', a long list item's screen lines start under its text
+    ('breakindent', with "list:-1" in 'breakindentopt').
+
+What tells a paragraph from code is the syntax (|tern-highlight|): with
+`:syntax off`, = moves nothing and gq formats nothing. Typing is not
+changed: no key re-indents ('indentkeys' is empty), and 't' stays out of
+'formatoptions', as hard-wrapping while typing would break one-line
+constructs. The options it sets: 'comments' (quotes only, so that `* ` and
+`- ` are not taken for comment leaders), 'formatlistpat', the "n" flag of
+'formatoptions', 'formatexpr', 'indentexpr', 'indentkeys', 'breakindent'
+and 'breakindentopt'. To change one, set it in after/ftplugin/tern.lua.
+
+==============================================================================
+11. HEALTH                                                       *tern-health*
 
 `:checkhealth tern` checks the buffer you ran it from, else the current
 directory. Its sections:
@@ -1063,7 +1121,7 @@ directory. Its sections:
 • Options: the options in effect.
 
 ==============================================================================
-11. WITHOUT NODE                                           *tern-without-node*
+12. WITHOUT NODE                                           *tern-without-node*
 
 Without Node 22 or later, or without the Tern CLI, the language server
 cannot start. When the first note opens, the plugin says why, once a
@@ -1075,6 +1133,7 @@ session, and goes on. For example: >
 These still work:
 • detection and the filetype `tern`;
 • highlighting (|tern-highlight|);
+• formatting with = and gq (|tern-format|);
 • folding by headings (|tern-lexical-folds|);
 • |:TernInit|;
 • |:TernPreview| and its live reload, because the server runs in Neovim and
@@ -1090,7 +1149,7 @@ With |tern-option-lsp| false, notes behave the same, without the notice, and
 |:TernCheck| and |:TernBuild| still work when Node and the CLI are there.
 
 ==============================================================================
-12. THE API FOR USERS                                               *tern-api*
+13. THE API FOR USERS                                               *tern-api*
 
 These modules are for your config and for other plugins. Each loads on first
 use. {buf} is a buffer number, where 0 means the current buffer.
@@ -1187,7 +1246,7 @@ For example: >lua
     end
 <
 ==============================================================================
-13. TROUBLESHOOTING                                     *tern-troubleshooting*
+14. TROUBLESHOOTING                                     *tern-troubleshooting*
 
 Start with `:checkhealth tern` in the note (|tern-health|).
 
@@ -1242,7 +1301,7 @@ The preview does not change ~
   to 0 for any free port.
 
 ==============================================================================
-14. LICENSE                                                     *tern-license*
+15. LICENSE                                                     *tern-license*
 
 MIT License. Copyright (c) 2026 OzkrAC. The full text is in the LICENSE
 file of this plugin.
