@@ -28,6 +28,24 @@ local function file_of(buf)
   return vim.fs.normalize(vim.fn.fnamemodify(name, ':p'))
 end
 
+-- The buffer the CLI is found from (tern.cli: the tern.js a note loads) for
+-- a command on paths: the current one when it is a note, else the note used
+-- last, as from the quickfix window a search or a check opened; else the
+-- current one, which finds it from the working directory or PATH.
+local function cli_buf()
+  local cur = vim.api.nvim_get_current_buf()
+  if vim.bo[cur].filetype == 'tern' and file_of(cur) then
+    return cur
+  end
+  local best
+  for _, b in ipairs(vim.fn.getbufinfo({ bufloaded = 1 })) do
+    if vim.bo[b.bufnr].filetype == 'tern' and file_of(b.bufnr) and (not best or b.lastused > best.lastused) then
+      best = b
+    end
+  end
+  return best and best.bufnr or cur
+end
+
 -- A path argument, with %, # and ~ expanded as on the command line.
 local function expand(arg)
   return arg:match('^[%%#<~$]') and vim.fn.expandcmd(arg) or arg
@@ -209,7 +227,7 @@ function M.check(args)
   end
   local cwd = vim.fn.getcwd()
   local argv = vim.list_extend({ 'check', '--json' }, paths)
-  local _, reason = require('tern.cli').run(buf, argv, function(res)
+  local _, reason = require('tern.cli').run(cli_buf(), argv, function(res)
     local ok, diags = pcall(vim.json.decode, res.stdout or '', { luanil = { object = true, array = true } })
     if res.code > 2 or not ok or type(diags) ~= 'table' then
       return failure('check', res)
@@ -254,7 +272,6 @@ end
 -- expanded as a path); the rest, in order, are the query. Without a path the
 -- working directory is searched.
 function M.search(args)
-  local buf = vim.api.nvim_get_current_buf()
   local paths, query, opts = {}, {}, {}
   for _, a in ipairs(args and args.fargs or {}) do
     if a:sub(1, 2) == '--' then
@@ -277,7 +294,7 @@ function M.search(args)
   local argv = vim.list_extend({ 'search', '--json' }, opts)
   argv[#argv + 1] = words
   vim.list_extend(argv, paths)
-  local _, reason = require('tern.cli').run(buf, argv, function(res)
+  local _, reason = require('tern.cli').run(cli_buf(), argv, function(res)
     local ok, hits = pcall(vim.json.decode, res.stdout or '', { luanil = { object = true, array = true } })
     if res.code > 2 or not ok or type(hits) ~= 'table' then
       return failure('search', res)

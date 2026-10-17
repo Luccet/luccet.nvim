@@ -4,19 +4,21 @@
 -- CLI, found next to a link to the Tern checkout's tern.js.
 local FIRST = '<!doctype html><meta charset="utf-8"><script src="%s"></script>'
 
--- Runs fn(T, notices) with the server off, $TERN_CLI unset and vim.notify
--- captured; restores all three.
+-- Runs fn(T, notices) with the server off, $TERN_CLI unset, no `tern` on
+-- PATH (as in CI: the CLI is found from the note) and vim.notify captured;
+-- restores all four.
 local function scoped(fn)
   return function(T)
-    local env, notify = vim.env.TERN_CLI, vim.notify
+    local env, path, notify = vim.env.TERN_CLI, vim.env.PATH, vim.notify
     local notices = {}
     vim.env.TERN_CLI = nil
+    vim.env.PATH = '/usr/bin:/bin:' .. vim.fs.dirname(vim.fn.exepath('node'))
     vim.notify = function(msg, level)
       notices[#notices + 1] = { msg = msg, level = level }
     end
     require('tern').setup({ lsp = false })
     local ok, err = pcall(fn, T, notices)
-    vim.env.TERN_CLI, vim.notify = env, notify
+    vim.env.TERN_CLI, vim.env.PATH, vim.notify = env, path, notify
     require('tern').setup()
     if not ok then
       error(err, 0)

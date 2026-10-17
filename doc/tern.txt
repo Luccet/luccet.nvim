@@ -147,7 +147,9 @@ or later. Each node binary is checked once a session. For a buffer without a
 file, the search starts in the current directory.
 
 The language server is the CLI with `lsp`. |:TernCheck| and |:TernBuild| run
-the same CLI with `check` and `build`. `:checkhealth tern` shows which source
+the same CLI with `check` and `build`. Run from a buffer that is not a note,
+such as the quickfix window a search opened, |:TernCheck| and |:TernSearch|
+find it for the note you were in last. `:checkhealth tern` shows which source
 found the CLI for the current buffer (|tern-health|).
 
 ==============================================================================
