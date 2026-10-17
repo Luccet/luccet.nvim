@@ -35,7 +35,8 @@ tern.nvim is the Neovim side of Tern. It:
   (|tern-detection|);
 • runs `tern lsp`, Tern's language server, for each note. The server gives
   diagnostics, completion, go to definition, references, rename, hover,
-  symbols and folding (|tern-lsp|);
+  symbols, folding and quick fixes, in the note and across notes
+  (|tern-lsp|);
 • draws virtual text from the server's outline: block labels, what each
   reference reads as, equation numbers, and simple TeX as Unicode
   (|tern-render|);
@@ -160,6 +161,7 @@ The defaults: >lua
     require('tern').setup({
       cmd = nil,
       lsp = true,
+      watch = false,
       fold = true,
       render = {
         enabled = true,
@@ -194,6 +196,16 @@ lsp                                                          *tern-option-lsp*
     Starts `tern lsp` for each note. With false, no server starts, and notes
     fold by headings (|tern-lexical-folds|) and get no virtual text.
     |:TernCheck| and |:TernBuild| still work.
+
+watch                                                      *tern-option-watch*
+    Boolean. Default: false.
+    Lets the server watch the files under its root, through Neovim's file
+    watcher, for changes made outside Neovim: an add-on edited in another
+    program takes effect in the notes that load it at once, and a file
+    renamed by git is seen by the link checks. Off, such changes are seen at
+    the note's next change, save, open or close. Neovim's watcher on Linux
+    polls the tree, so a very large root (one holding node_modules) costs
+    with it on.
 
 fold                                                        *tern-option-fold*
     Boolean. Default: true.
@@ -321,6 +333,11 @@ preview.update                                    *tern-option-preview.update*
     page title and score in `user_data`. A word stands for the words it
     begins, so `pythag` finds Pythagoras. The notes are read from disk.
 
+    An argument that starts with `--` goes to `tern search` as it is:
+    `:TernSearch --index=search.json pythag` searches the index that
+    `tern index` wrote instead of reading the notes, the same hits from
+    one file; the value of `--index=` is expanded as a path (%, ~, $VAR).
+
     The list's title is "tern search" and the words. When the current list
     is a tern search list, a new search replaces it, even one that finds
     nothing; otherwise a search that finds something adds a new list, and
@@ -422,8 +439,12 @@ Completion                                                   *tern-completion*
     elements allowed at that place. Nothing is offered inside code, math,
     raw HTML or a raw container.
 
+    Right after a keystroke, before the server has analysed the change,
+    completion reads what you typed from the buffer and answers with the
+    names and ids of the last analysis.
+
     Use |i_CTRL-X_CTRL-O|: 'omnifunc' is |vim.lsp.omnifunc()|. To complete as
-    you type, after the trigger characters `:` `@` `/` `#`, enable
+    you type, after the trigger characters `:` and `@`, enable
     |lsp-completion| for the client: >lua
         vim.api.nvim_create_autocmd('LspAttach', {
           callback = function(ev)
@@ -439,22 +460,50 @@ Go to definition                                             *tern-definition*
     From a reference `@id`, a fragment link `[text](#id)` or a footnote
     reference `[^x]`, it goes to the declaration: the `#id` of an attribute
     group, the footnote's `[^x]:`, or the heading whose slug is the id.
-    From a named closer `:::/name`, it goes to the opener's name.
+    From a named closer `:::/name`, it goes to the opener's name. From a
+    link to another file, `maps.html#rn`, it goes to the id there, or to
+    the file's first line without a fragment (|tern-across-files|).
     Use |CTRL-]| ('tagfunc' is |vim.lsp.tagfunc()|) or
     |vim.lsp.buf.definition()|.
 
 References                                                   *tern-references*
     From a declaration or from any reference, it lists every `@id`, fragment
-    link and footnote reference to the id. Nothing inside code or math is a
-    reference. Use |grr| (|vim.lsp.buf.references()|).
+    link and footnote reference to the id, and every link `page.html#id` to
+    it from the other notes. Nothing inside code or math is a reference.
+    Use |grr| (|vim.lsp.buf.references()|).
 
 Rename                                                           *tern-rename*
-    Renames an id together with all its references, or an element's name
+    Renames an id together with all its references, in its note and in the
+    links `page.html#id` to it from the other notes, or an element's name
     together with its named closer, in one edit. Renaming a heading's slug
     adds `{#new}` to the heading line. The server refuses an id that `@`
     could not reach, an id the note already uses, and the ids that come from
     footnote labels, and it says why. Use |grn| (|vim.lsp.buf.rename()|).
-    To rename or move a file, with its links, use |:TernMove|.
+    The other notes are edited in their buffers, loaded if need be, and not
+    written: |:wall| writes them. To rename or move a file, with its links,
+    use |:TernMove|.
+
+Across files                                               *tern-across-files*
+    A link to another file with a fragment, `maps.html#rn`, is a reference
+    to that id. Definition, references and rename follow it: the other
+    notes under the server's root, and every open note, are read as link
+    checking reads them, an open note as it is in its buffer. A link to a
+    file that is not a note goes to the element with that id, or the
+    heading with that anchor in a Markdown file; rename is refused there.
+
+Code actions                                               *tern-code-actions*
+    |gra| (|vim.lsp.buf.code_action()|) on a diagnostic offers its quick
+    fixes, when it has one: a near id for a reference to no id, or its
+    escape `\@name`; the definition of a footnote without one; the closer
+    of an unclosed block or display math; a near name for an unknown name;
+    braces around an opener's attributes written without them; the disk's
+    spelling for a link in another case.
+
+Workspace symbols                                     *tern-workspace-symbols*
+    |vim.lsp.buf.workspace_symbol()| searches the headings, and the blocks
+    with an id or a title, of every note under the root and every open
+    note, by name or id (`#rn`), into the quickfix list. The notes are
+    parsed, their code not run.
 
 Hover                                                             *tern-hover*
     |K| (|vim.lsp.buf.hover()|) on an id, a reference or a declaration shows

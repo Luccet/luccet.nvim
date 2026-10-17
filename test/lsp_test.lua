@@ -241,6 +241,97 @@ return {
     T.eq(#after, #refs, 'every reference follows the new id')
   end) },
 
+  { 'a code action fixes a dangling reference and closes the open aside', clean(function(T)
+    local buf = open(T)
+    if not buf then
+      return
+    end
+    local client = lsp.client(buf)
+    T.wait(5000, function()
+      return #vim.diagnostic.get(buf) >= 2
+    end, 'the diagnostics')
+    -- The quick fixes of a diagnostic, as the client asks for them, applied
+    -- as vim.lsp.buf.code_action() would apply the one chosen.
+    local function fix(code, title)
+      local d
+      for _, x in ipairs(vim.diagnostic.get(buf)) do
+        if x.code == code then
+          d = x
+        end
+      end
+      T.ok(d, code .. ' reported')
+      local lspd = d.user_data.lsp
+      local actions = request(buf, 'textDocument/codeAction', { range = lspd.range, context = { diagnostics = { lspd } } })
+      local chosen
+      for _, a in ipairs(actions) do
+        if a.title:find(title, 1, true) then
+          chosen = a
+        end
+      end
+      T.ok(chosen, title .. ' offered among ' .. vim.inspect(vim.tbl_map(function(a)
+        return a.title
+      end, actions)))
+      T.eq(chosen.kind, 'quickfix', 'a quickfix')
+      vim.lsp.util.apply_workspace_edit(chosen.edit, client.offset_encoding)
+    end
+    fix('ref.dangling', 'Write \\@nowhere')
+    T.eq(vim.api.nvim_buf_get_lines(buf, 3, 4, true)[1], 'See @kernel, @rn and \\@nowhere.', 'the escape written')
+    fix('block.unclosed', 'Close it with :::/aside')
+    local last = vim.api.nvim_buf_get_lines(buf, -2, -1, true)[1]
+    T.eq(last, ':::/aside', 'the closer added where the aside runs out')
+    T.wait(5000, function()
+      return #vim.diagnostic.get(buf) == 0
+    end, 'no diagnostics once both are fixed')
+  end) },
+
+  { 'definition follows a link to another note, and a rename there reaches the link', clean(function(T)
+    local buf, path = open(T)
+    if not buf then
+      return
+    end
+    local other = T.write(vim.fs.dirname(path) .. '/other.html', '<!doctype html><script src="tern.js"></script>\n# Other\n\nSee [the kernel](note.html#kernel).\n')
+    vim.cmd.edit(other)
+    local obuf = vim.api.nvim_get_current_buf()
+    T.wait(5000, function()
+      return lsp.client(obuf) and lsp.outline(obuf)
+    end, 'the other note attached')
+    vim.api.nvim_win_set_cursor(0, { 4, col_of(obuf, 4, '#kernel') + 2 })
+    vim.lsp.buf.definition()
+    T.wait(5000, function()
+      return vim.api.nvim_get_current_buf() == buf and vim.api.nvim_win_get_cursor(0)[1] == 2
+    end, 'the cursor on #kernel in note.html')
+    T.eq(vim.api.nvim_win_get_cursor(0)[2], col_of(buf, 2, '#kernel'), 'at the id')
+    -- Renamed from its declaration: the link in the other buffer follows.
+    vim.lsp.buf.rename('core')
+    T.wait(5000, function()
+      return vim.api.nvim_buf_get_lines(buf, 1, 2, true)[1] == '# Kernel {#core}'
+    end, 'the rename applied')
+    T.eq(vim.api.nvim_buf_get_lines(obuf, 3, 4, true)[1], 'See [the kernel](note.html#core).', 'the link in the other note')
+    T.eq(vim.bo[obuf].modified, true, 'edited in its buffer, not written')
+  end) },
+
+  { 'workspace/symbol finds headings and blocks across the notes under the root', clean(function(T)
+    local buf, path = open(T)
+    if not buf then
+      return
+    end
+    T.write(vim.fs.dirname(path) .. '/sub/deep.html', '<!doctype html><script src="../tern.js"></script>\n## Kernels, again\n\n:::proof{#p1}\nx\n:::\n')
+    local client = lsp.client(buf)
+    local function names(query)
+      local res = client:request_sync('workspace/symbol', { query = query }, 5000)
+      T.ok(res and not res.err, 'workspace/symbol: ' .. vim.inspect(res))
+      local out = {}
+      for _, s in ipairs(res.result) do
+        out[#out + 1] = s.containerName .. ': ' .. s.name
+      end
+      table.sort(out)
+      return out
+    end
+    T.eq(names('kern'), { 'note.html: Kernel', 'sub/deep.html: Kernels, again' }, 'headings, with the file relative to the root')
+    T.eq(names('#rn'), { 'note.html: Rank–nullity #rn' }, 'a block by id')
+    T.eq(names('#p1'), { 'sub/deep.html: proof #p1' }, 'a block in a subfolder')
+  end) },
+
   { 'hover over a reference shows its label', clean(function(T)
     local buf = open(T)
     if not buf then

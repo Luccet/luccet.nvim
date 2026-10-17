@@ -9,7 +9,7 @@ tern.nvim is a client of `tern lsp`, Tern's language server. It has no grammar o
 ## Features
 
 - **Detection.** An `.html` file that loads `tern.js` gets the filetype `tern`. This is the engine's own rule, written in Lua, so it needs no Node.
-- **Language server.** Diagnostics as you type, completion of element names, closers and ids, go to definition, references, rename, hover, document symbols and folding. They work through Neovim's own LSP mappings (`grr`, `grn`, `K`, `gO`, `CTRL-]`, `]d` …).
+- **Language server.** Diagnostics as you type, completion of element names, closers and ids, go to definition, references, rename, hover, document symbols, folding, and quick fixes for the diagnostics that have one. A link `page.html#id` is a reference too: definition, references and rename follow it into the other note. They work through Neovim's own LSP mappings (`grr`, `grn`, `gra`, `K`, `gO`, `CTRL-]`, `]d` …), and `vim.lsp.buf.workspace_symbol()` searches the headings and blocks of every note under the root.
 - **Virtual text** drawn from the server's outline. It shows a numbered block's label ("Theorem 1"), what each `@reference` reads as, equation numbers, and simple TeX as Unicode. Math reads as Unicode in place of its source (`$\mathbb{R}^n$` → ℝⁿ), inline and display, with the note's `:::macros` expanded, `$$` hidden, and `align`, `cases` and matrices shown row by row. A block's opener reads as its label and title (`:::theorem[Main]{#t1 .big}` → Theorem 1 Main {#t1}), and its closer is hidden; an inline element reads as its content (`:kbd[Ctrl]` → Ctrl). The head (doctype, scripts, styles) folds into one line saying what it holds. The source shows again while the cursor is on it.
 - **Live preview.** `:TernPreview` serves the note's project from inside Neovim and refreshes the browser as you type, before you write. The note re-renders in place and keeps its scroll position. The server listens on 127.0.0.1 and refuses requests from other sites.
 - **Commands.** `:TernInit` writes a note's first line, `:TernCheck` sends `tern check` to the quickfix list, `:TernSearch` searches the notes by word into it, `:TernBuild` runs `tern build`, and `:TernMove` moves a file and fixes the links to it and in it.
@@ -83,6 +83,8 @@ require('tern').setup({
   cmd = nil,
   -- Start `tern lsp` for notes.
   lsp = true,
+  -- Let the server watch the root's files for changes made outside Neovim.
+  watch = false,
   -- Fold from the language server; without it, by headings.
   fold = true,
   -- Virtual text drawn from the server's outline.
@@ -112,7 +114,7 @@ Fenced code is highlighted in its language for the syntaxes in `g:tern_fence_lan
 |---|---|
 | `:TernInit [SRC]` | Writes the canonical first line, which loads `tern.js` from SRC or from the nearest `tern.js`, at the top of the buffer. |
 | `:TernCheck [PATH…]` | Runs `tern check` on the paths, or on the buffer's file, and puts the diagnostics in the quickfix list. |
-| `:TernSearch WORD… [PATH…]` | Runs `tern search` on the paths, or on the working directory, and puts the hits, each at its heading or block, in the quickfix list. |
+| `:TernSearch WORD… [PATH…]` | Runs `tern search` on the paths, or on the working directory, and puts the hits, each at its heading or block, in the quickfix list. An argument starting with `--` is passed on: `--index=search.json` searches the index `tern index` wrote. |
 | `:TernBuild [OUT]` | Runs `tern build` on the buffer's file. OUT defaults to `NAME.built.html` beside the note. |
 | `:TernMove [FROM] TO` | Moves the buffer's file, or FROM (a file or a folder), to TO, and fixes the links to it and in it, as `tern mv` does. Unsaved changes count. Needs the language server. |
 | `:TernPreview` | Serves the note and opens it in a browser. The page refreshes as you type. |

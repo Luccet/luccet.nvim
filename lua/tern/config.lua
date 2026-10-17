@@ -9,6 +9,11 @@ M.defaults = {
   cmd = nil,
   -- Start `tern lsp` for notes: diagnostics, completion, rename, hover …
   lsp = true,
+  -- Let the server watch the files under its root for changes made outside
+  -- Neovim (an add-on edited elsewhere, a git checkout), through Neovim's
+  -- file watcher. Off: such changes are seen at the note's next change or
+  -- save. Neovim's watcher on Linux polls, so a very large root costs.
+  watch = false,
   -- Fold from the language server (blocks, fences, sections); without
   -- node, headings only.
   fold = true,

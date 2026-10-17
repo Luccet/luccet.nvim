@@ -249,17 +249,24 @@ local function is_dir(p)
   return st and st.type == 'directory'
 end
 
--- The args that name a file or a folder are the paths; the rest, in order,
--- are the query. Without a path the working directory is searched.
+-- The args that name a file or a folder are the paths; one starting with --
+-- is an option for tern search, as it is (`--index=search.json`, its value
+-- expanded as a path); the rest, in order, are the query. Without a path the
+-- working directory is searched.
 function M.search(args)
   local buf = vim.api.nvim_get_current_buf()
-  local paths, query = {}, {}
+  local paths, query, opts = {}, {}, {}
   for _, a in ipairs(args and args.fargs or {}) do
-    local p = expand(a)
-    if is_file(p) or is_dir(p) then
-      paths[#paths + 1] = p
+    if a:sub(1, 2) == '--' then
+      local k, v = a:match('^(%-%-[%w%-]+=)(.+)$')
+      opts[#opts + 1] = k and (k .. expand(v)) or a
     else
-      query[#query + 1] = a
+      local p = expand(a)
+      if is_file(p) or is_dir(p) then
+        paths[#paths + 1] = p
+      else
+        query[#query + 1] = a
+      end
     end
   end
   if #query == 0 then
@@ -267,7 +274,9 @@ function M.search(args)
   end
   local words = table.concat(query, ' ')
   local cwd = vim.fn.getcwd()
-  local argv = vim.list_extend({ 'search', '--json', words }, paths)
+  local argv = vim.list_extend({ 'search', '--json' }, opts)
+  argv[#argv + 1] = words
+  vim.list_extend(argv, paths)
   local _, reason = require('tern.cli').run(buf, argv, function(res)
     local ok, hits = pcall(vim.json.decode, res.stdout or '', { luanil = { object = true, array = true } })
     if res.code > 2 or not ok or type(hits) ~= 'table' then

@@ -163,6 +163,16 @@ return {
     T.wait(10000, function()
       return notices[#notices].msg:find('a word to search for', 1, true) ~= nil
     end, 'a path alone refused')
+    -- An option goes to tern search as it is: --index=FILE searches the
+    -- index tern index wrote, so the hit comes from the file, at its line.
+    local r = vim.system({ 'node', T.tern_root() .. '/tern-cli.js', 'index', dir }, { text = true }):wait()
+    T.eq(r.code, 0, 'tern index: ' .. (r.stderr or ''))
+    vim.cmd('TernSearch --index=search.json pythag')
+    T.wait(10000, function()
+      return #vim.fn.getqflist() == 1 and (vim.fn.getqflist({ title = 0 }).title or ''):find('^tern search pythag') ~= nil
+    end, 'the hit from the index')
+    T.eq({ vim.api.nvim_buf_get_name(vim.fn.getqflist()[1].bufnr), vim.fn.getqflist()[1].lnum, vim.fn.getqflist()[1].user_data.id }, { path, 6, 'py' }, 'the file resolved from the index, at the block')
+    T.ok(notices[#notices].msg:find('in search.json: 1 result', 1, true), notices[#notices].msg)
   end) },
 
   { ':TernCheck on a clean note says so', scoped(function(T, notices)

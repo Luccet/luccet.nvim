@@ -210,10 +210,17 @@ local function launch(buf)
     return nil, reason
   end
   local root = root_of(buf)
+  -- The server asks a client that can watch files to (an add-on edited on
+  -- disk is then seen at once); Neovim can, when asked to.
+  local capabilities = vim.lsp.protocol.make_client_capabilities()
+  if require('tern.config').options.watch then
+    capabilities.workspace.didChangeWatchedFiles = { dynamicRegistration = true, relativePatternSupport = true }
+  end
   local ok, id = pcall(vim.lsp.start, {
     name = 'tern',
     cmd = info.lsp,
     root_dir = root,
+    capabilities = capabilities,
     handlers = { ['tern/outline'] = on_outline },
     on_exit = function(code, signal, client_id)
       local c = vim.lsp.get_client_by_id(client_id)
