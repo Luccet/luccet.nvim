@@ -1,0 +1,37 @@
+# The plugin's tests, against the Tern engine they are a client of: a
+# checkout of OzkrAC/tern beside this one, named by TERN_ROOT. The engine
+# does not test the plugin; the dependency runs this one way.
+name: ci
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: tests against Tern's main (Neovim stable)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: tern.nvim
+      - uses: actions/checkout@v7
+        with:
+          repository: OzkrAC/tern
+          path: tern
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - run: nvim --version | head -1
+      - run: nvim --headless -u NONE -l test/run.lua
+        working-directory: tern.nvim
+        env:
+          TERN_ROOT: ${{ github.workspace }}/tern
