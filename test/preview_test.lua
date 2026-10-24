@@ -1,10 +1,10 @@
 -- SPDX-License-Identifier: MIT
--- tern.preview: the HTTP server over raw vim.uv TCP clients, then a real
+-- luccet.preview: the HTTP server over raw vim.uv TCP clients, then a real
 -- browser through Playwright when node and Playwright are found
--- ($NODE_PATH, else npx's cache in ~/.npm/_npx), and a Tern checkout for
--- tern.js (T.tern_root()).
+-- ($NODE_PATH, else npx's cache in ~/.npm/_npx), and a Luccet checkout for
+-- luccet.js (T.luccet_root()).
 local uv = vim.uv
-local P = require('tern.preview')
+local P = require('luccet.preview')
 
 -- Each case runs with the preview closed after it, the options reset and
 -- messages captured in T.msgs instead of printed.
@@ -17,7 +17,7 @@ local function case(name, fn)
       vim.notify = function(m, l)
         table.insert(T.msgs, { m, l })
       end
-      require('tern').setup({ lsp = false, render = { enabled = false }, preview = { open = false } })
+      require('luccet').setup({ lsp = false, render = { enabled = false }, preview = { open = false } })
       local limits = vim.deepcopy(P._limits)
       T.cleanup = {}
       local ok, err = xpcall(fn, debug.traceback, T)
@@ -29,7 +29,7 @@ local function case(name, fn)
         P._limits[k] = v
       end
       vim.notify = notify
-      require('tern').setup()
+      require('luccet').setup()
       if not ok then
         error(err, 0)
       end
@@ -136,11 +136,11 @@ local function fnv(s)
   return ('%08x'):format(h)
 end
 
-local NOTE = '<!doctype html><meta charset="utf-8">\n<title>A</title><script src="../tern.js" nonce="abc"></script>\n# A\n\nText.\n'
+local NOTE = '<!doctype html><meta charset="utf-8">\n<title>A</title><script src="../luccet.js" nonce="abc"></script>\n# A\n\nText.\n'
 
 local function project(T)
   local dir = vim.fs.normalize(uv.fs_realpath(T.tmpdir()))
-  write(dir .. '/tern.js', '// a stand-in\n')
+  write(dir .. '/luccet.js', '// a stand-in\n')
   write(dir .. '/notes/a.html', NOTE)
   write(dir .. '/style.css', 'body { color: red }\n')
   return dir
@@ -157,7 +157,7 @@ end
 local function events(T)
   local c = client(T, P.info().port, ('GET /__tern/events HTTP/1.1\r\nHost: 127.0.0.1:%d\r\n\r\n'):format(P.info().port))
   T.wait(3000, function()
-    return c.text():find(': tern\n\n', 1, true)
+    return c.text():find(': luccet\n\n', 1, true)
   end, 'the event stream opens')
   function c.events()
     local list = {}
@@ -225,13 +225,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       throw new Error(`timed out waiting for ${fn}`);
     };
     const state = () => page.evaluate(async () => {
-      await tern.ready;
+      await luccet.ready;
       const a = document.querySelector('.t-diagnostics');
-      return { marker: window.__marker, y: Math.round(scrollY), title: document.title, panel: a && a.textContent, text: document.querySelector('main.tern').textContent };
+      return { marker: window.__marker, y: Math.round(scrollY), title: document.title, panel: a && a.textContent, text: document.querySelector('main.luccet').textContent };
     });
     await page.goto(url);
-    await poll(() => window.tern && document.querySelector('main.tern'));
-    await page.evaluate(() => tern.ready);
+    await poll(() => window.luccet && document.querySelector('main.luccet'));
+    await page.evaluate(() => luccet.ready);
     await page.evaluate(() => { window.__marker = 42; window.scrollTo(0, 1500); });
     say('STEP1', await state());
     await poll(() => document.body.textContent.includes('Changed in Neovim'));
@@ -240,17 +240,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await poll(() => document.body.textContent.includes('Typed, not written'));
     await sleep(300);
     say('TYPED', await state());
-    await poll(() => document.title === 'Live 2' && !window.__marker && window.tern && document.querySelector('main.tern'));
+    await poll(() => document.title === 'Live 2' && !window.__marker && window.luccet && document.querySelector('main.luccet'));
     await sleep(300);
     const s3 = await state();
     await page.evaluate(() => { window.__marker = 7; });
     say('STEP3', s3);
-    await poll(() => window.__marker === undefined && window.tern && document.querySelector('main.tern'), 20000);
+    await poll(() => window.__marker === undefined && window.luccet && document.querySelector('main.luccet'), 20000);
     await sleep(300);
     const s4 = await state();
     await page.evaluate(() => { window.__marker = 9; });
     say('STEP4', s4);
-    await poll(() => window.__marker === undefined && window.tern && document.querySelector('main.tern'));
+    await poll(() => window.__marker === undefined && window.luccet && document.querySelector('main.luccet'));
     await sleep(300);
     say('STEP5', await state());
   } catch (e) {
@@ -263,22 +263,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 local function browser_case(which)
   return case('in ' .. which .. ': positions match, a body change renders in place, written or not, a head change or a restart reloads', function(T)
-    local tern_root = T.tern_root()
+    local luccet_root = T.luccet_root()
     local node_path, why = playwright()
-    if not tern_root or not node_path then
-      print('    (skipped: ' .. (why or 'no Tern checkout; set $TERN_ROOT') .. ')')
+    if not luccet_root or not node_path then
+      print('    (skipped: ' .. (why or 'no Luccet checkout; set $LUCCET_ROOT') .. ')')
       return
     end
     local dir = vim.fs.normalize(uv.fs_realpath(T.tmpdir()))
-    write(dir .. '/tern.js', read(tern_root .. '/tern.js'))
-    local lines = { '<!doctype html><meta charset="utf-8">', '<title>Live</title>', '<script src="tern.js" data-katex="none"></script>', '# Live preview', '' }
+    write(dir .. '/luccet.js', read(luccet_root .. '/luccet.js'))
+    local lines = { '<!doctype html><meta charset="utf-8">', '<title>Live</title>', '<script src="luccet.js" data-katex="none"></script>', '# Live preview', '' }
     for i = 1, 60 do
       vim.list_extend(lines, { ('Paragraph %d: a line long enough to wrap once or twice in an 800 pixel wide window, so that the page scrolls well past 1500 pixels.'):format(i), '' })
     end
     vim.list_extend(lines, { ':::note', 'never closed' })
     local opener = #lines - 1 -- the file line of :::note
     write(dir .. '/note.html', table.concat(lines, '\n') .. '\n')
-    write(dir .. '/other.html', '<!doctype html><meta charset="utf-8"><script src="tern.js" data-katex="none"></script>\n# Other\n')
+    write(dir .. '/other.html', '<!doctype html><meta charset="utf-8"><script src="luccet.js" data-katex="none"></script>\n# Other\n')
     write(dir .. '/driver.js', DRIVER)
 
     vim.cmd.edit(dir .. '/other.html')
@@ -325,7 +325,7 @@ local function browser_case(which)
       print('    (skipped: ' .. which .. ' does not launch: ' .. out.SKIP.why .. ')')
       return
     end
-    -- The injection kept the tern.js line on file line 3: the panel's file
+    -- The injection kept the luccet.js line on file line 3: the panel's file
     -- line is the editor's.
     T.eq({ panel_lines(s1) }, { opener - 3, opener }, 'the panel positions (note line, file line)')
     T.eq(s1.y, 1500, 'scrolled')
@@ -367,7 +367,7 @@ local function browser_case(which)
     local port = P.info().port
     P.stop(true)
     vim.wait(300)
-    require('tern').setup({ lsp = false, render = { enabled = false }, preview = { open = false, port = port } })
+    require('luccet').setup({ lsp = false, render = { enabled = false }, preview = { open = false, port = port } })
     T.ok(P.start(), 'restarted: ' .. last_msg(T))
     local s4 = step('STEP4')
     T.eq(s4.marker, nil, 'reloaded when the server came back')
@@ -386,12 +386,12 @@ end
 ------------------------------------------------------------------ the cases
 
 return {
-  case('the note gets data-diagnostics and the live script on its tern.js line, and nothing else', function(T)
+  case('the note gets data-diagnostics and the live script on its luccet.js line, and nothing else', function(T)
     local dir = project(T)
     local url = start(T, dir .. '/notes/a.html')
     local info = P.info()
     T.eq(url, ('http://127.0.0.1:%d/notes/a.html'):format(info.port), 'the URL')
-    T.eq(info.root, dir, 'the root: the folder with tern.js')
+    T.eq(info.root, dir, 'the root: the folder with luccet.js')
     T.ok(last_msg(T):find(url, 1, true), 'the URL is printed')
 
     local r = req(T, '/notes/a.html')
@@ -408,8 +408,8 @@ return {
     end
     local head = NOTE:sub(1, select(2, NOTE:find('\n', NOTE:find('\n') + 1, true)))
     T.eq(got[2], '<title>A</title><script src="/__tern/live.js" data-path="/notes/a.html" data-line="2" data-head="'
-      .. fnv(head) .. '" nonce="abc"></script><script data-diagnostics src="../tern.js" nonce="abc"></script>', 'the tern.js line')
-    T.eq(require('tern.detect').line(got[2]).tag, '<script data-diagnostics src="../tern.js" nonce="abc">', 'still the tern.js line')
+      .. fnv(head) .. '" nonce="abc"></script><script data-diagnostics src="../luccet.js" nonce="abc"></script>', 'the luccet.js line')
+    T.eq(require('luccet.detect').line(got[2]).tag, '<script data-diagnostics src="../luccet.js" nonce="abc">', 'still the luccet.js line')
     T.eq(req(T, '/notes/a.html', { method = 'HEAD' }).h['content-length'], tostring(#r.body), 'HEAD length')
 
     -- data-head follows the head only.
@@ -424,10 +424,10 @@ return {
 
     -- data-diagnostics already there is kept; a tag closed on a later line
     -- disables the in-place refresh; HTML that is no note is left alone.
-    write(dir .. '/b.html', '<!doctype html><script data-diagnostics=false src="tern.js"></script>\n# B\n')
+    write(dir .. '/b.html', '<!doctype html><script data-diagnostics=false src="luccet.js"></script>\n# B\n')
     local b = req(T, '/b.html').body
-    T.ok(b:find('<script data-diagnostics=false src="tern.js">', 1, true) and select(2, b:gsub('data%-diagnostics', '')) == 1, 'one data-diagnostics')
-    write(dir .. '/c.html', '<!doctype html><script src="tern.js">\n</script>\n# C\n')
+    T.ok(b:find('<script data-diagnostics=false src="luccet.js">', 1, true) and select(2, b:gsub('data%-diagnostics', '')) == 1, 'one data-diagnostics')
+    write(dir .. '/c.html', '<!doctype html><script src="luccet.js">\n</script>\n# C\n')
     T.ok(req(T, '/c.html').body:find('data-line="0"', 1, true), 'data-line 0')
     local page = '<!doctype html><title>Page</title><script src="app.js"></script>\n<p>hi</p>\n'
     write(dir .. '/page.html', page)
@@ -569,7 +569,7 @@ return {
   case('an event stream gets one event per write under the root', function(T)
     local dir = project(T)
     local outside = vim.fs.normalize(uv.fs_realpath(T.tmpdir()))
-    write(dir .. '/b.html', '<!doctype html><script src="tern.js"></script>\n# B\n')
+    write(dir .. '/b.html', '<!doctype html><script src="luccet.js"></script>\n# B\n')
     start(T, dir .. '/notes/a.html')
     local es = events(T)
     T.wait(2000, function()
@@ -610,7 +610,7 @@ return {
     es.close()
   end),
 
-  case('a second :TernPreview under the root reuses the server; outside it, the server moves', function(T)
+  case('a second :LuccetPreview under the root reuses the server; outside it, the server moves', function(T)
     local dir = project(T)
     write(dir .. '/b.html', NOTE)
     local other = vim.fs.normalize(uv.fs_realpath(T.tmpdir()))
@@ -642,7 +642,7 @@ return {
     assert(blocker:bind('127.0.0.1', 0))
     assert(blocker:listen(1, function() end))
     local port = blocker:getsockname().port
-    require('tern').setup({ lsp = false, preview = { open = false, port = port } })
+    require('luccet').setup({ lsp = false, preview = { open = false, port = port } })
     vim.cmd.edit(dir .. '/notes/a.html')
     T.eq(P.start(), nil, 'no URL')
     blocker:close()
@@ -654,7 +654,7 @@ return {
   case('the browser is opened with preview.browser', function(T)
     local dir = project(T)
     local log = dir .. '/opened.txt'
-    require('tern').setup({ lsp = false, preview = { open = true, browser = { 'sh', '-c', 'printf %s "$1" > ' .. log, 'sh' } } })
+    require('luccet').setup({ lsp = false, preview = { open = true, browser = { 'sh', '-c', 'printf %s "$1" > ' .. log, 'sh' } } })
     vim.cmd.edit(dir .. '/notes/a.html')
     local url = P.start()
     T.wait(3000, function()
@@ -674,7 +674,7 @@ return {
     local raw = function()
       return req(T, '/__tern/raw/notes/a.html').body
     end
-    T.eq(raw(), NOTE .. 'Before the preview.\n', 'modified before :TernPreview: served at once')
+    T.eq(raw(), NOTE .. 'Before the preview.\n', 'modified before :LuccetPreview: served at once')
     local es = events(T)
     local function typed(lines)
       vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
@@ -733,7 +733,7 @@ return {
 
   case('with preview.update write, only writes refresh the page', function(T)
     local dir = project(T)
-    require('tern').setup({ lsp = false, render = { enabled = false }, preview = { open = false, update = 'write' } })
+    require('luccet').setup({ lsp = false, render = { enabled = false }, preview = { open = false, update = 'write' } })
     vim.cmd.edit(dir .. '/notes/a.html')
     vim.api.nvim_buf_set_lines(0, -1, -1, false, { 'unsaved' })
     T.ok(P.start(), 'started')
@@ -756,9 +756,9 @@ return {
     local port = P.info().port
     local es = events(T)
     local idle = client(T, port, 'GET /style.css HTTP/1.1\r\n')
-    T.eq(#vim.api.nvim_get_autocmds({ group = 'tern_preview', event = 'VimLeavePre' }), 1, 'stopped on VimLeavePre')
+    T.eq(#vim.api.nvim_get_autocmds({ group = 'luccet_preview', event = 'VimLeavePre' }), 1, 'stopped on VimLeavePre')
     P.stop()
-    T.eq(last_msg(T), 'tern: preview stopped', 'the message')
+    T.eq(last_msg(T), 'luccet: preview stopped', 'the message')
     T.wait(2000, function()
       return es.eof and idle.eof
     end, 'every connection closed')
@@ -768,9 +768,9 @@ return {
     T.ok(after.err, 'the port no longer listens')
     after.close()
     T.eq(P.info(), nil, 'no server')
-    T.eq(pcall(vim.api.nvim_get_autocmds, { group = 'tern_preview' }), false, 'no autocommands')
+    T.eq(pcall(vim.api.nvim_get_autocmds, { group = 'luccet_preview' }), false, 'no autocommands')
     P.stop()
-    T.eq(last_msg(T), 'tern: no preview is running', 'a second stop')
+    T.eq(last_msg(T), 'luccet: no preview is running', 'a second stop')
   end),
 
   browser_case('chromium'),

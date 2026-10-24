@@ -1,6 +1,6 @@
 -- SPDX-License-Identifier: MIT
--- Is a buffer a Tern note? A note is an HTML file one of whose lines holds a
--- plain <script> loading a file named tern.js. This is the engine's DETECT
+-- Is a buffer a Luccet note? A note is an HTML file one of whose lines holds a
+-- plain <script> loading a file named luccet.js. This is the engine's DETECT
 -- rule (cli/note.js), written as a scanner because Lua patterns have no
 -- lookahead; test/detect_test.lua checks it against the engine's fixtures
 -- (test/fixtures/detect.json). The rule, per line:
@@ -9,14 +9,14 @@
 --   - the tag is `<script` followed by whitespace, `>` or `/`, up to its `>`
 --     (no `<` before it);
 --   - it has no async, defer or data-built attribute and no type=module:
---     tern.js must run while the page is parsed to capture the note;
---   - its src is tern.js, optionally after a path and before ?query/#hash,
+--     luccet.js must run while the page is parsed to capture the note;
+--   - its src is luccet.js, optionally after a path and before ?query/#hash,
 --     quoted or not, with no whitespace inside.
 --   M.line(s)      -> {col = 1-based byte column of the tag, tag = '<script …>'} | nil
 --   M.buffer(buf)  -> {lnum = 1-based line, col, tag} | nil
 local M = {}
 
--- How far into a file the tern.js line is looked for. The head before it is
+-- How far into a file the luccet.js line is looked for. The head before it is
 -- short in practice; the cap keeps detection cheap on large HTML files.
 M.max_lines = 1000
 
@@ -51,7 +51,7 @@ local function is_module(inner)
   return false
 end
 
--- Does some `src=` in the tag's inside name tern.js? `tag` ends with `>`.
+-- Does some `src=` in the tag's inside name luccet.js? `tag` ends with `>`.
 local function src_is_tern(inner, after_tag)
   local from = 1
   while true do
@@ -79,7 +79,7 @@ local function src_is_tern(inner, after_tag)
     local nextc = stop <= #inner and inner:sub(stop, stop) or after_tag -- the char after the run
     local at = 1
     while true do
-      local t1, t2 = run:find('tern.js', at, true)
+      local t1, t2 = run:find('luccet.js', at, true)
       if not t1 then
         break
       end
@@ -88,7 +88,7 @@ local function src_is_tern(inner, after_tag)
         local c = rest:sub(1, 1)
         local ok
         if c == '?' or c == '#' or c == '' then
-          -- tern.js[?…|#…] runs to the end of the value: then the closing
+          -- luccet.js[?…|#…] runs to the end of the value: then the closing
           -- quote (if any), then whitespace, `>` or `/`.
           if q == '' then
             ok = nextc == '>' or space(nextc)
@@ -97,7 +97,7 @@ local function src_is_tern(inner, after_tag)
             ok = nextc == q and (after_q == '>' or after_q == '/' or space(after_q))
           end
         elseif c == '/' and q == '' then
-          ok = true -- an unquoted tern.js followed by `/` still ends the name
+          ok = true -- an unquoted luccet.js followed by `/` still ends the name
         end
         if ok then
           return true
@@ -109,7 +109,7 @@ local function src_is_tern(inner, after_tag)
   end
 end
 
--- The tern.js tag that starts at byte i of the line, or nil.
+-- The luccet.js tag that starts at byte i of the line, or nil.
 local function tag_at(s, low, i)
   if low:sub(i, i + 6) ~= '<script' then
     return nil

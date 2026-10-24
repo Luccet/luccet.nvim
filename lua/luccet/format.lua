@@ -14,12 +14,12 @@
 --   formatexpr()   the 'formatexpr'
 --   LIST           the 'formatlistpat': a list item's or a footnote's marker
 --
--- Why moving them is safe: Tern has no indented code, ignores indentation
+-- Why moving them is safe: Luccet has no indented code, ignores indentation
 -- past a container's content column, and continues a paragraph lazily with a
 -- line that fails a container's prefix. A line that continues a paragraph
 -- does so at any indentation. What it must not be is a line that would start
 -- a block, so every such line, and some that would not, is left alone.
--- Which lines are verbatim comes from the syntax (syntax/tern.vim); without
+-- Which lines are verbatim comes from the syntax (syntax/luccet.vim); without
 -- it, nothing moves.
 local M = {}
 
@@ -31,8 +31,8 @@ M.LIST = [==[^\s*\%([-*+]\|\d\{1,9}[.)]\)\s\+\%(\[[ xX]\]\s\+\)\=\|^\s*\[\^[^\]]
 local REACH = 1000
 
 -- Syntax groups whose lines are not paragraphs.
-local VERBATIM = { '^ternHead$', '^ternHtml', '^ternFence', '^ternMathBlock$', '^ternRaw', '^ternReserved$',
-  '^ternMacros', '^ternMeta', '^ternTableRow$' }
+local VERBATIM = { '^luccetHead$', '^luccetHtml', '^luccetFence', '^luccetMathBlock$', '^luccetRaw', '^luccetReserved$',
+  '^luccetMacros', '^luccetMeta', '^luccetTableRow$' }
 
 -- A table row's line, or the next one when it ends with a backslash (the
 -- row goes on there, a line the syntax does not mark).
@@ -129,7 +129,7 @@ end
 -- the old text: a screen update first, once per change.
 local seen = {} -- buf -> the changedtick the syntax was brought up to date at
 local function syntax()
-  if vim.g.syntax_on == nil or vim.bo.syntax ~= 'tern' then
+  if vim.g.syntax_on == nil or vim.bo.syntax ~= 'luccet' then
     return false
   end
   local buf, tick = vim.api.nvim_get_current_buf(), vim.b.changedtick
@@ -323,7 +323,7 @@ function M.formatexpr()
   if not syntax() then
     if not warned then
       warned = true
-      vim.notify('tern: gq formats a note with its syntax on only, to tell its paragraphs from its code', vim.log.levels.WARN)
+      vim.notify('luccet: gq formats a note with its syntax on only, to tell its paragraphs from its code', vim.log.levels.WARN)
     end
     return 0
   end

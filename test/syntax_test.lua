@@ -1,14 +1,14 @@
 -- SPDX-License-Identifier: MIT
--- syntax/tern.vim: the groups at chosen places of small notes and of the
--- Tern repository's pages, no errors on any page, the time to highlight the
+-- syntax/luccet.vim: the groups at chosen places of small notes and of the
+-- Luccet repository's pages, no errors on any page, the time to highlight the
 -- largest one, and (with node) agreement with the engine's own parse of
 -- every example in the documentation.
 local api = vim.api
 
-local HEAD = '<!doctype html><meta charset="utf-8"><script src="tern.js"></script>'
+local HEAD = '<!doctype html><meta charset="utf-8"><script src="luccet.js"></script>'
 
 -- A buffer holding lines (after HEAD unless head is given), with the filetype
--- tern but not its ftplugin, so no language server starts. vars are set as
+-- luccet but not its ftplugin, so no language server starts. vars are set as
 -- buffer variables first.
 local function note(lines, head, vars)
   if vim.g.syntax_on == nil then
@@ -21,14 +21,14 @@ local function note(lines, head, vars)
     vim.b[buf][k] = v
   end
   vim.b[buf].did_ftplugin = true
-  vim.bo[buf].filetype = 'tern'
+  vim.bo[buf].filetype = 'luccet'
   return buf
 end
 
 local function page(T, rel)
-  local root = T.tern_root()
+  local root = T.luccet_root()
   if not root then
-    print('    (skipped: no Tern checkout; set $TERN_ROOT)')
+    print('    (skipped: no Luccet checkout; set $LUCCET_ROOT)')
     return nil
   end
   return note(vim.fn.readfile(root .. '/' .. rel), {})
@@ -42,7 +42,7 @@ end
 
 -- The names of the syntax groups at a byte position, outermost first, in
 -- lower case: group names are case-insensitive, and a group someone else
--- defined first (say TernMath) keeps its spelling.
+-- defined first (say LuccetMath) keeps its spelling.
 local function stack(l, c)
   local out = {}
   for _, id in ipairs(vim.fn.synstack(l, c)) do
@@ -54,7 +54,7 @@ end
 -- Each spec is { needle, group, offset, from = line }: at the first
 -- occurrence of needle on or after line from (default: after the HEAD line,
 -- or from the first line with from_first), offset bytes in, the stack holds
--- group; '!group' must be absent, 'none' means no tern group at all.
+-- group; '!group' must be absent, 'none' means no luccet group at all.
 local function check(specs, from_first)
   local lines = api.nvim_buf_get_lines(0, 0, -1, false)
   for _, s in ipairs(specs) do
@@ -75,7 +75,7 @@ local function check(specs, from_first)
     local ok
     if group == 'none' then
       ok = not vim.iter(st):any(function(n)
-        return n:match('^tern') ~= nil
+        return n:match('^luccet') ~= nil
       end)
     elseif group:sub(1, 1) == '!' then
       ok = not vim.tbl_contains(st, group:sub(2))
@@ -89,27 +89,27 @@ local function check(specs, from_first)
 end
 
 return {
-  { 'the head is HTML, up to and including the tern.js line', function()
+  { 'the head is HTML, up to and including the luccet.js line', function()
     note({ '', '# Title', 'text <b>x</b>' }, {
       '<!doctype html>',
       '<html lang="en">',
-      '<script>window.TERN = {schema: {}};</script>',
-      '<title>T</title><script src="../tern.js?v=2" data-use="a.js"></script> <!-- c -->',
+      '<script>window.LUCCET = {schema: {}};</script>',
+      '<title>T</title><script src="../luccet.js?v=2" data-use="a.js"></script> <!-- c -->',
     })
     check({
-      { '<html', 'ternHead' }, { '<html', 'htmlTag' }, { 'window.TERN', 'ternHead' },
-      { '<title>', 'ternHead' }, { 'tern.js', 'ternHead' }, { '<!-- c', 'ternHead' },
-      { '# Title', '!ternHead' }, { '# Title', 'ternHeading' }, { '<b>x', 'ternHtmlInline' },
+      { '<html', 'luccetHead' }, { '<html', 'htmlTag' }, { 'window.LUCCET', 'luccetHead' },
+      { '<title>', 'luccetHead' }, { 'luccet.js', 'luccetHead' }, { '<!-- c', 'luccetHead' },
+      { '# Title', '!luccetHead' }, { '# Title', 'luccetHeading' }, { '<b>x', 'luccetHtmlInline' },
     }, true)
   end },
-  { 'the head follows edits above the tern.js line', function()
+  { 'the head follows edits above the luccet.js line', function()
     local buf = note({ '# Title' })
     api.nvim_buf_set_lines(buf, 0, 0, false, { '<!doctype html>', '<style>p { color: red }</style>' })
     refresh()
-    check({ { '<style>', 'ternHead' }, { HEAD, 'ternHead' }, { '# Title', 'ternHeading' } }, true)
+    check({ { '<style>', 'luccetHead' }, { HEAD, 'luccetHead' }, { '# Title', 'luccetHeading' } }, true)
     api.nvim_buf_set_lines(buf, 0, 3, false, { HEAD, '# Moved' })
     refresh()
-    check({ { HEAD, 'ternHead' }, { '# Moved', 'ternHeading' }, { '# Moved', '!ternHead' } }, true)
+    check({ { HEAD, 'luccetHead' }, { '# Moved', 'luccetHeading' }, { '# Moved', '!luccetHead' } }, true)
   end },
   { 'headings, containers, closers, leaves and cells', function()
     note({
@@ -127,18 +127,18 @@ return {
       '> # Quoted heading',
     })
     check({
-      { '# Linear', 'ternHeading' }, { '# Linear', 'ternHeadingDelim' }, { 'Linear maps', 'ternHeading' },
-      { '{#maps', 'ternAttr' }, { '#maps', 'ternAttrId' }, { '.wide', 'ternAttrClass' },
-      { '######', 'ternHeading' }, { '#hashtag', 'none' }, { '####### Seven', 'none' },
-      { '{#k} more', '!ternAttr' }, { '{#k} more', 'ternHeading' },
-      { ':::theorem', 'ternBlockDelim' }, { 'theorem[', 'ternBlockName' }, { 'Rank', 'ternBlockTitle' },
-      { '*x*', 'ternEmphasis' }, { '$f[x]$', 'ternMath' }, { '#thm-rn', 'ternAttrId' }, { '.big', 'ternAttrClass' },
-      { '+++', 'ternCellSep' }, { '.muted', 'ternAttrClass' },
-      { '::video', 'ternLeafDelim' }, { 'video[', 'ternLeafName' }, { 'Fallback', 'ternLeafContent' },
-      { 'src=', 'ternAttrKey' }, { 'tide.mp4', 'ternAttrValue' }, { 'controls', 'ternAttrKey' },
-      { ':::/theorem', 'ternCloser' }, { ':::/theorem', 'ternCloserName', 4 }, { ':::', 'ternCloser', 0, from = 11 },
+      { '# Linear', 'luccetHeading' }, { '# Linear', 'luccetHeadingDelim' }, { 'Linear maps', 'luccetHeading' },
+      { '{#maps', 'luccetAttr' }, { '#maps', 'luccetAttrId' }, { '.wide', 'luccetAttrClass' },
+      { '######', 'luccetHeading' }, { '#hashtag', 'none' }, { '####### Seven', 'none' },
+      { '{#k} more', '!luccetAttr' }, { '{#k} more', 'luccetHeading' },
+      { ':::theorem', 'luccetBlockDelim' }, { 'theorem[', 'luccetBlockName' }, { 'Rank', 'luccetBlockTitle' },
+      { '*x*', 'luccetEmphasis' }, { '$f[x]$', 'luccetMath' }, { '#thm-rn', 'luccetAttrId' }, { '.big', 'luccetAttrClass' },
+      { '+++', 'luccetCellSep' }, { '.muted', 'luccetAttrClass' },
+      { '::video', 'luccetLeafDelim' }, { 'video[', 'luccetLeafName' }, { 'Fallback', 'luccetLeafContent' },
+      { 'src=', 'luccetAttrKey' }, { 'tide.mp4', 'luccetAttrValue' }, { 'controls', 'luccetAttrKey' },
+      { ':::/theorem', 'luccetCloser' }, { ':::/theorem', 'luccetCloserName', 4 }, { ':::', 'luccetCloser', 0, from = 11 },
       { '::: spaced', 'none' },
-      { '> # Quoted', 'ternQuote' }, { 'Quoted heading', 'ternHeading' },
+      { '> # Quoted', 'luccetQuote' }, { 'Quoted heading', 'luccetHeading' },
     })
   end },
   { 'rules, quotes, lists, footnotes, attribute lines and tables', function()
@@ -158,18 +158,18 @@ return {
       '|---|--:|',
     })
     check({
-      { '---', 'ternRule' }, { '* * *', 'ternRule' }, { '--- text', '!ternRule' },
-      { '> quoted', 'ternQuote' }, { '*text*', 'ternEmphasis' },
-      { '- item', 'ternListMarker' }, { '[x]', 'ternTask' }, { '10.', 'ternListMarker' }, { '-no', 'none' },
-      { '[^note]:', 'ternFootnoteDef' },
-      { '{#intro', 'ternAttrLine' }, { '#intro', 'ternAttrId' }, { '.lead', 'ternAttrClass' }, { '{x}', 'none' },
-      { '| Key', 'ternTablePipe' }, { '`a|b`', 'ternCode', 2 }, { '`a|b`', '!ternTablePipe', 2 },
-      { '$|x|$', 'ternMath', 1 }, { '|---|', 'ternTableSep' },
+      { '---', 'luccetRule' }, { '* * *', 'luccetRule' }, { '--- text', '!luccetRule' },
+      { '> quoted', 'luccetQuote' }, { '*text*', 'luccetEmphasis' },
+      { '- item', 'luccetListMarker' }, { '[x]', 'luccetTask' }, { '10.', 'luccetListMarker' }, { '-no', 'none' },
+      { '[^note]:', 'luccetFootnoteDef' },
+      { '{#intro', 'luccetAttrLine' }, { '#intro', 'luccetAttrId' }, { '.lead', 'luccetAttrClass' }, { '{x}', 'none' },
+      { '| Key', 'luccetTablePipe' }, { '`a|b`', 'luccetCode', 2 }, { '`a|b`', '!luccetTablePipe', 2 },
+      { '$|x|$', 'luccetMath', 1 }, { '|---|', 'luccetTableSep' },
     })
   end },
   { 'fences: runs, info strings, nesting and their end', function()
     note({
-      '````tern {.live}',
+      '````luccet {.live}',
       '```js',
       '# not a heading',
       '```',
@@ -192,15 +192,15 @@ return {
       '# h',
     })
     check({
-      { '````tern', 'ternFence' }, { '````tern', 'ternFenceDelim' }, { 'tern {', 'ternFenceLang' },
-      { '.live', 'ternAttrClass' }, { '```js', 'ternFenceCode' }, { '# not a heading', 'ternFenceCode' },
-      { '# not a heading', '!ternHeading' }, { '````', 'ternFenceDelim', 0, from = 6 },
-      { '~~~python', 'ternFence' }, { 'python', 'ternFenceLang' }, { 'A *title*', 'ternBlockTitle' },
-      { '#lst', 'ternAttrId' }, { 'lines', 'ternAttrKey' }, { '``` not', 'ternFenceCode' },
-      { '```a`b```', '!ternFence' }, { '```a`b```', 'ternCode' }, { 'para *after*', '!ternFence' },
-      { '> ```', 'ternQuote' }, { '# quoted code', 'ternFenceCode' }, { 'after *the* quote', '!ternFence' },
-      { '- ```js', 'ternListMarker' }, { 'let x', 'ternFenceCode_javascript' }, { 'after *the* item', '!ternFence' },
-      { 'unclosed', 'ternFenceCode' }, { '# h', 'ternFenceCode' },
+      { '````luccet', 'luccetFence' }, { '````luccet', 'luccetFenceDelim' }, { 'luccet {', 'luccetFenceLang' },
+      { '.live', 'luccetAttrClass' }, { '```js', 'luccetFenceCode' }, { '# not a heading', 'luccetFenceCode' },
+      { '# not a heading', '!luccetHeading' }, { '````', 'luccetFenceDelim', 0, from = 6 },
+      { '~~~python', 'luccetFence' }, { 'python', 'luccetFenceLang' }, { 'A *title*', 'luccetBlockTitle' },
+      { '#lst', 'luccetAttrId' }, { 'lines', 'luccetAttrKey' }, { '``` not', 'luccetFenceCode' },
+      { '```a`b```', '!luccetFence' }, { '```a`b```', 'luccetCode' }, { 'para *after*', '!luccetFence' },
+      { '> ```', 'luccetQuote' }, { '# quoted code', 'luccetFenceCode' }, { 'after *the* quote', '!luccetFence' },
+      { '- ```js', 'luccetListMarker' }, { 'let x', 'luccetFenceCode_javascript' }, { 'after *the* item', '!luccetFence' },
+      { 'unclosed', 'luccetFenceCode' }, { '# h', 'luccetFenceCode' },
     })
   end },
   { 'fences in their language: js, css and html by default, others by option', function()
@@ -208,14 +208,14 @@ return {
       '```python', 'import os', '```' }
     note(lines)
     check({
-      { 'const', 'ternFenceCode_javascript' }, { 'const', 'javaScriptReserved' },
-      { '<b>raw', 'ternFenceCode_html' }, { '<b>raw', 'htmlTag' }, { 'p {', 'ternFenceCode_css' },
-      { 'import', 'ternFenceCode' }, { 'import', '!ternFenceCode_python' },
+      { 'const', 'luccetFenceCode_javascript' }, { 'const', 'javaScriptReserved' },
+      { '<b>raw', 'luccetFenceCode_html' }, { '<b>raw', 'htmlTag' }, { 'p {', 'luccetFenceCode_css' },
+      { 'import', 'luccetFenceCode' }, { 'import', '!luccetFenceCode_python' },
     })
-    note(lines, nil, { tern_fence_languages = { 'python' } })
-    check({ { 'import', 'ternFenceCode_python' }, { 'import', 'pythonInclude' }, { 'const', 'ternFenceCode' } })
-    note(lines, nil, { tern_fence_languages = vim.empty_dict() })
-    check({ { 'const', 'ternFenceCode' }, { 'const', '!ternFenceCode_javascript' } })
+    note(lines, nil, { luccet_fence_languages = { 'python' } })
+    check({ { 'import', 'luccetFenceCode_python' }, { 'import', 'pythonInclude' }, { 'const', 'luccetFenceCode' } })
+    note(lines, nil, { luccet_fence_languages = vim.empty_dict() })
+    check({ { 'const', 'luccetFenceCode' }, { 'const', '!luccetFenceCode_javascript' } })
   end },
   { 'display math, its closer group and its terminators', function()
     note({
@@ -234,10 +234,10 @@ return {
       '## A heading ends it',
     })
     check({
-      { '\\dim V', 'ternMathBlock' }, { '$$ {#eq-rn', 'ternMathDelim' }, { '#eq-rn', 'ternAttrId' },
-      { 'e^{i', 'ternMathBlock' }, { '#eq-e', 'ternAttrId' }, { '$$ x $$ is', '!ternMathBlock' },
-      { '\\$$', 'ternEscape' }, { '\\$$', '!ternMathBlock', 1 },
-      { 'after the blank', 'none' }, { '## A heading ends', 'ternHeading' }, { '## A heading ends', '!ternMathBlock' },
+      { '\\dim V', 'luccetMathBlock' }, { '$$ {#eq-rn', 'luccetMathDelim' }, { '#eq-rn', 'luccetAttrId' },
+      { 'e^{i', 'luccetMathBlock' }, { '#eq-e', 'luccetAttrId' }, { '$$ x $$ is', '!luccetMathBlock' },
+      { '\\$$', 'luccetEscape' }, { '\\$$', '!luccetMathBlock', 1 },
+      { 'after the blank', 'none' }, { '## A heading ends', 'luccetHeading' }, { '## A heading ends', '!luccetMathBlock' },
     })
   end },
   { 'raw HTML blocks: comments, raw text, generic, one-line', function()
@@ -259,7 +259,7 @@ return {
       '# after div',
       '<hr class="fancy">',
       '<p>',
-      'A *Tern* paragraph',
+      'A *Luccet* paragraph',
       '<tide-clock station="x">',
       '**raw**',
       '</tide-clock>',
@@ -272,15 +272,15 @@ return {
       '# after aside',
     })
     check({
-      { '# not a heading', 'ternHtmlComment' }, { '# in pre', 'ternHtmlBlock' }, { '</pre >', 'ternHtmlBlock' },
-      { '# after pre', 'ternHeading' }, { '<div class', 'ternHtmlBlock' }, { '<div class', 'htmlTag' },
-      { 'inner', 'ternHtmlBlock' }, { '*x*', '!ternEmphasis' }, { '# still inside', 'ternHtmlBlock' },
-      { '# still inside', '!ternHeading' }, { '# after div', 'ternHeading' }, { '<hr', 'ternHtmlBlock' },
-      { '<p>', 'ternHtmlBlock' }, { '*Tern*', 'ternEmphasis' }, { '*Tern*', '!ternHtmlBlock' },
-      { '**raw**', 'ternHtmlBlock' }, { '**raw**', '!ternStrong' }, { '<b>Bold', 'ternHtmlInline' },
-      { '<b>Bold', '!ternHtmlBlock' }, { '*paragraph*', 'ternEmphasis' }, { '<divider>', '!ternHtmlBlock' },
-      { '*em*', 'ternEmphasis' }, { 'unclosed', 'ternHtmlBlock' }, { ':::', 'ternCloser', 0, from = 27 },
-      { '# after aside', 'ternHeading' },
+      { '# not a heading', 'luccetHtmlComment' }, { '# in pre', 'luccetHtmlBlock' }, { '</pre >', 'luccetHtmlBlock' },
+      { '# after pre', 'luccetHeading' }, { '<div class', 'luccetHtmlBlock' }, { '<div class', 'htmlTag' },
+      { 'inner', 'luccetHtmlBlock' }, { '*x*', '!luccetEmphasis' }, { '# still inside', 'luccetHtmlBlock' },
+      { '# still inside', '!luccetHeading' }, { '# after div', 'luccetHeading' }, { '<hr', 'luccetHtmlBlock' },
+      { '<p>', 'luccetHtmlBlock' }, { '*Luccet*', 'luccetEmphasis' }, { '*Luccet*', '!luccetHtmlBlock' },
+      { '**raw**', 'luccetHtmlBlock' }, { '**raw**', '!luccetStrong' }, { '<b>Bold', 'luccetHtmlInline' },
+      { '<b>Bold', '!luccetHtmlBlock' }, { '*paragraph*', 'luccetEmphasis' }, { '<divider>', '!luccetHtmlBlock' },
+      { '*em*', 'luccetEmphasis' }, { 'unclosed', 'luccetHtmlBlock' }, { ':::', 'luccetCloser', 0, from = 27 },
+      { '# after aside', 'luccetHeading' },
     })
   end },
   { 'raw bodies: meta, macros, {raw} and reserved names', function()
@@ -301,12 +301,12 @@ return {
       'after *em*',
     })
     check({
-      { ':::meta', 'ternMeta' }, { ':::meta', 'ternBlockDelim' }, { 'meta', 'ternBlockName' },
-      { 'title', 'ternMetaKey' }, { 'Linear maps', 'ternMetaBody' }, { ':::aside', 'ternMetaBody' },
-      { ':::aside', '!ternBlockDelim' }, { '\\gdef', 'ternMacrosBody' }, { ':::/macros', 'ternCloser' },
-      { 'Flow', 'ternBlockTitle' }, { 'raw #flow', 'ternAttrKey' }, { '*not em*', 'ternRawText' },
-      { '*not em*', '!ternEmphasis' }, { 'alert', 'ternRawText' }, { '*em*', 'ternEmphasis' },
-      { '*em*', '!ternRawText' },
+      { ':::meta', 'luccetMeta' }, { ':::meta', 'luccetBlockDelim' }, { 'meta', 'luccetBlockName' },
+      { 'title', 'luccetMetaKey' }, { 'Linear maps', 'luccetMetaBody' }, { ':::aside', 'luccetMetaBody' },
+      { ':::aside', '!luccetBlockDelim' }, { '\\gdef', 'luccetMacrosBody' }, { ':::/macros', 'luccetCloser' },
+      { 'Flow', 'luccetBlockTitle' }, { 'raw #flow', 'luccetAttrKey' }, { '*not em*', 'luccetRawText' },
+      { '*not em*', '!luccetEmphasis' }, { 'alert', 'luccetRawText' }, { '*em*', 'luccetEmphasis' },
+      { '*em*', '!luccetRawText' },
     })
   end },
   { 'inline constructs', function()
@@ -340,34 +340,34 @@ return {
       'closed* here',
     })
     check({
-      { '`a``b`', 'ternCode' }, { '``a`b``', 'ternCode' }, { 'lone `', '!ternCode', 5 },
-      { '$5 and $10', '!ternMath' }, { '$10', '!ternMath' }, { '$x$', 'ternMath' }, { '$\\$$', 'ternMath' },
-      { '$]0,1[$', '!ternMath' }, { '$`]0,1[`', 'ternMath' }, { '$a$2', '!ternMath' },
-      { '*em*', 'ternEmphasis' }, { '**strong**', 'ternStrong' }, { '***both***', 'ternStrongEmphasis' },
-      { '2 * 3', '!ternEmphasis', 2 }, { '~~gone~~', 'ternStrike' }, { '==key==', 'ternMark' }, { 'a==b', '!ternMark', 1 },
-      { '[link]', 'ternLink', 1 }, { 'https://x.org "T"', 'ternLinkDest' }, { '"T"', 'ternLinkTitle' },
-      { '.btn', 'ternAttrClass' }, { '![alt]', 'ternLink', 2 }, { '[span]', 'ternSpan', 1 }, { '.term', 'ternAttrClass' },
-      { ':kbd', 'ternElement' }, { 'Ctrl', 'ternElementText' }, { '30[x]', 'none', 2 },
-      { '@thm-rn', 'ternRef' }, { '@kernel--', 'ternRef' }, { '@kernel--', '!ternRef', 7 }, { 'me@x.org', '!ternRef', 2 },
-      { '[^a]', 'ternFootnoteRef' }, { 'Wow!', '!ternLink', 3 }, { '<https://a.b>', 'ternAutolink' },
-      { 'https://x.org/a.', 'ternAutolink' }, { 'https://x.org/a.', '!ternAutolink', 15 },
-      { '&amp;', 'ternEntity' }, { '&copy', '!ternEntity' }, { '\\*', 'ternEscape' }, { '\\alpha', 'none' },
-      { '<b class', 'ternHtmlInline' }, { '<b class', 'htmlTag' }, { '<div>x', 'none' }, { '<!-- c', 'ternHtmlComment' },
-      { '`c`{.x}', 'ternAttrClass', 4 },
-      { '==重要', 'ternMark' }, { '@kernelです', 'ternRef' },
-      { 'break\\', 'ternHardBreak', 5 },
-      { 'span`', 'ternCode' }, { 'x_i$', 'ternMath' }, { '*not', 'none' }, { 'closed*', 'none' },
+      { '`a``b`', 'luccetCode' }, { '``a`b``', 'luccetCode' }, { 'lone `', '!luccetCode', 5 },
+      { '$5 and $10', '!luccetMath' }, { '$10', '!luccetMath' }, { '$x$', 'luccetMath' }, { '$\\$$', 'luccetMath' },
+      { '$]0,1[$', '!luccetMath' }, { '$`]0,1[`', 'luccetMath' }, { '$a$2', '!luccetMath' },
+      { '*em*', 'luccetEmphasis' }, { '**strong**', 'luccetStrong' }, { '***both***', 'luccetStrongEmphasis' },
+      { '2 * 3', '!luccetEmphasis', 2 }, { '~~gone~~', 'luccetStrike' }, { '==key==', 'luccetMark' }, { 'a==b', '!luccetMark', 1 },
+      { '[link]', 'luccetLink', 1 }, { 'https://x.org "T"', 'luccetLinkDest' }, { '"T"', 'luccetLinkTitle' },
+      { '.btn', 'luccetAttrClass' }, { '![alt]', 'luccetLink', 2 }, { '[span]', 'luccetSpan', 1 }, { '.term', 'luccetAttrClass' },
+      { ':kbd', 'luccetElement' }, { 'Ctrl', 'luccetElementText' }, { '30[x]', 'none', 2 },
+      { '@thm-rn', 'luccetRef' }, { '@kernel--', 'luccetRef' }, { '@kernel--', '!luccetRef', 7 }, { 'me@x.org', '!luccetRef', 2 },
+      { '[^a]', 'luccetFootnoteRef' }, { 'Wow!', '!luccetLink', 3 }, { '<https://a.b>', 'luccetAutolink' },
+      { 'https://x.org/a.', 'luccetAutolink' }, { 'https://x.org/a.', '!luccetAutolink', 15 },
+      { '&amp;', 'luccetEntity' }, { '&copy', '!luccetEntity' }, { '\\*', 'luccetEscape' }, { '\\alpha', 'none' },
+      { '<b class', 'luccetHtmlInline' }, { '<b class', 'htmlTag' }, { '<div>x', 'none' }, { '<!-- c', 'luccetHtmlComment' },
+      { '`c`{.x}', 'luccetAttrClass', 4 },
+      { '==重要', 'luccetMark' }, { '@kernelです', 'luccetRef' },
+      { 'break\\', 'luccetHardBreak', 5 },
+      { 'span`', 'luccetCode' }, { 'x_i$', 'luccetMath' }, { '*not', 'none' }, { 'closed*', 'none' },
     })
   end },
   { 'the groups keep their default links', function(T)
     note({ '# x' })
     local links = {
-      ternHeading = 'Title', ternBlockName = 'Statement', ternAttrId = 'Identifier', ternAttrValue = 'String',
-      ternMath = 'Special', ternMathBlock = 'ternMath', ternRef = 'Identifier', ternCode = 'String',
-      ternFenceCode = 'String', ternFenceDelim = 'Delimiter', ternLink = 'Underlined', ternHtmlComment = 'Comment',
+      luccetHeading = 'Title', luccetBlockName = 'Statement', luccetAttrId = 'Identifier', luccetAttrValue = 'String',
+      luccetMath = 'Special', luccetMathBlock = 'luccetMath', luccetRef = 'Identifier', luccetCode = 'String',
+      luccetFenceCode = 'String', luccetFenceDelim = 'Delimiter', luccetLink = 'Underlined', luccetHtmlComment = 'Comment',
     }
     for group, want in pairs(links) do
-      -- Names are case-insensitive: a TernMath defined elsewhere is this group.
+      -- Names are case-insensitive: a LuccetMath defined elsewhere is this group.
       T.eq(api.nvim_get_hl(0, { name = group }).link, want, group .. ' links to')
     end
   end },
@@ -376,14 +376,14 @@ return {
       return
     end
     check({
-      { 'window.TERN', 'ternHead' }, { '<script src="../tern.js"', 'ternHead' }, { 'title: Notes', 'ternMetaKey' },
-      { '# Notes on iterators', 'ternHeading' }, { 'function* fib', 'ternFenceCode_javascript' },
-      { 'A lazy Fibonacci', 'ternBlockTitle' }, { '#lst-fib', 'ternAttrId' }, { '@lst-fib yields', 'ternRef' },
-      { '`` ` ``', 'ternCode' }, { '``a`b``', 'ternCode' }, { 'Vec<T> and', '!ternHtmlInline', 3 },
-      { 'def take', 'ternFenceCode' }, { 'asterisk \\*', 'ternEscape', 9 }, { '$5 (no', '!ternMath' },
-      { '\\$x\\$', 'ternEscape' }, { '\\# Not a heading', '!ternHeading' }, { '<!-- TODO', 'ternHtmlComment' },
-      { '<form id', 'ternHtmlBlock' }, { '<button>Check', 'ternHtmlBlock' }, { '<table class', 'ternHtmlBlock' },
-      { '[data-t="note"]', 'ternHtmlBlock' }, { '[data-t="note"]', 'cssStyle' }, { 'for (const pre', 'javaScript' },
+      { 'window.LUCCET', 'luccetHead' }, { '<script src="../luccet.js"', 'luccetHead' }, { 'title: Notes', 'luccetMetaKey' },
+      { '# Notes on iterators', 'luccetHeading' }, { 'function* fib', 'luccetFenceCode_javascript' },
+      { 'A lazy Fibonacci', 'luccetBlockTitle' }, { '#lst-fib', 'luccetAttrId' }, { '@lst-fib yields', 'luccetRef' },
+      { '`` ` ``', 'luccetCode' }, { '``a`b``', 'luccetCode' }, { 'Vec<T> and', '!luccetHtmlInline', 3 },
+      { 'def take', 'luccetFenceCode' }, { 'asterisk \\*', 'luccetEscape', 9 }, { '$5 (no', '!luccetMath' },
+      { '\\$x\\$', 'luccetEscape' }, { '\\# Not a heading', '!luccetHeading' }, { '<!-- TODO', 'luccetHtmlComment' },
+      { '<form id', 'luccetHtmlBlock' }, { '<button>Check', 'luccetHtmlBlock' }, { '<table class', 'luccetHtmlBlock' },
+      { '[data-t="note"]', 'luccetHtmlBlock' }, { '[data-t="note"]', 'cssStyle' }, { 'for (const pre', 'javaScript' },
     }, true)
   end },
   { 'docs/syntax-blocks.html', function(T)
@@ -391,15 +391,15 @@ return {
       return
     end
     check({
-      { ':::meta', 'ternMeta' }, { '# Syntax: blocks {#top}', 'ternHeading' }, { '::toc', 'ternLeafDelim' },
-      { '=====', 'ternFenceCode' }, { '> # code, not a heading', 'ternFenceCode' },
-      { '<!doctype html><html lang="en">', 'ternHead' }, { '## The eight rules', 'ternHeading' },
+      { ':::meta', 'luccetMeta' }, { '# Syntax: blocks {#top}', 'luccetHeading' }, { '::toc', 'luccetLeafDelim' },
+      { '=====', 'luccetFenceCode' }, { '> # code, not a heading', 'luccetFenceCode' },
+      { '<!doctype html><html lang="en">', 'luccetHead' }, { '## The eight rules', 'luccetHeading' },
     }, true)
   end },
-  { 'no errors on any page of the Tern repository', function(T)
-    local root = T.tern_root()
+  { 'no errors on any page of the Luccet repository', function(T)
+    local root = T.luccet_root()
     if not root then
-      print('    (skipped: no Tern checkout; set $TERN_ROOT)')
+      print('    (skipped: no Luccet checkout; set $LUCCET_ROOT)')
       return
     end
     local files = vim.fn.glob(root .. '/{docs,examples}/*.html', false, true)
@@ -418,9 +418,9 @@ return {
     end
   end },
   { 'highlighting docs/syntax-blocks.html stays fast', function(T)
-    local root = T.tern_root()
+    local root = T.luccet_root()
     if not root then
-      print('    (skipped: no Tern checkout; set $TERN_ROOT)')
+      print('    (skipped: no Luccet checkout; set $LUCCET_ROOT)')
       return
     end
     local lines = vim.fn.readfile(root .. '/docs/syntax-blocks.html')
@@ -434,28 +434,28 @@ return {
     T.ok(load + parse < 2000, 'highlighting took longer than 2 s')
   end },
   { 'agrees with the engine on every example of the documentation', function(T)
-    local root = T.tern_root()
+    local root = T.luccet_root()
     if not root or vim.fn.executable('node') == 0 then
-      print('    (skipped: needs node and a Tern checkout)')
+      print('    (skipped: needs node and a Luccet checkout)')
       return
     end
-    -- Each ```tern fence of the docs, with the start of every node of its AST.
+    -- Each ```luccet fence of the docs, with the start of every node of its AST.
     local script = [[
       const fs = require('fs'), path = require('path'), root = process.argv[1];
-      const tern = require(path.join(root, 'tern.js')), out = [];
+      const luccet = require(path.join(root, 'luccet.js')), out = [];
       for (const f of fs.readdirSync(path.join(root, 'docs')).filter((f) => f.endsWith('.html'))) {
         const lines = fs.readFileSync(path.join(root, 'docs', f), 'utf8').split('\n');
         for (let i = 0; i < lines.length; i++) {
-          const m = /^(\s*)(`{3,})tern\b/.exec(lines[i]);
+          const m = /^(\s*)(`{3,})luccet\b/.exec(lines[i]);
           if (!m) continue;
           const close = new RegExp('^\\s*' + m[2] + '`*\\s*$'), body = [];
           while (++i < lines.length && !close.test(lines[i])) body.push(lines[i].slice(m[1].length));
           const nodes = [];
           (function walk(n) {
             if (n.type !== 'root' && n.type !== 'text' && n.position)
-              nodes.push([n.type + (n.data && n.data.tern && n.data.tern.kind ? ':' + n.data.tern.kind : ''), n.position.start.line, n.position.start.column]);
+              nodes.push([n.type + (n.data && n.data.luccet && n.data.luccet.kind ? ':' + n.data.luccet.kind : ''), n.position.start.line, n.position.start.column]);
             (n.children || []).forEach(walk);
-          })(tern.parse(body.join('\n')).ast);
+          })(luccet.parse(body.join('\n')).ast);
           out.push({ where: f + ':' + (i - body.length), lines: body, nodes });
         }
       }
@@ -474,20 +474,20 @@ return {
     -- The group expected at the start of each kind of node; for a paragraph,
     -- that no verbatim region swallowed it.
     local expect = {
-      containerDirective = set('ternBlockDelim', 'ternMeta', 'ternMacros', 'ternRaw', 'ternReserved'),
-      leafDirective = set('ternLeafDelim'), textDirective = set('ternElement'), inlineCode = set('ternCode'),
-      code = set('ternFence'), ['html:fence'] = set('ternFence'), heading = set('ternHeading'), ref = set('ternRef'),
-      inlineMath = set('ternMath'), tableRow = set('ternTableRow', 'ternTableSep'), math = set('ternMathBlock'),
-      footnoteReference = set('ternFootnoteRef'), footnoteDefinition = set('ternFootnoteDef'),
-      blockquote = set('ternQuote'), listItem = set('ternListMarker'), ['html:generic'] = set('ternHtmlBlock'),
-      ['html:rawtext'] = set('ternHtmlBlock'), ['html:oneline'] = set('ternHtmlBlock'),
-      ['html:comment'] = set('ternHtmlComment'), ['html:inline'] = set('ternHtmlInline', 'ternHtmlComment'),
-      strong = set('ternStrong', 'ternStrongEmphasis'), emphasis = set('ternEmphasis', 'ternStrongEmphasis'),
-      delete = set('ternStrike'), mark = set('ternMark'), span = set('ternSpan'),
-      link = set('ternLink', 'ternAutolink'), image = set('ternLink'), thematicBreak = set('ternRule'),
+      containerDirective = set('luccetBlockDelim', 'luccetMeta', 'luccetMacros', 'luccetRaw', 'luccetReserved'),
+      leafDirective = set('luccetLeafDelim'), textDirective = set('luccetElement'), inlineCode = set('luccetCode'),
+      code = set('luccetFence'), ['html:fence'] = set('luccetFence'), heading = set('luccetHeading'), ref = set('luccetRef'),
+      inlineMath = set('luccetMath'), tableRow = set('luccetTableRow', 'luccetTableSep'), math = set('luccetMathBlock'),
+      footnoteReference = set('luccetFootnoteRef'), footnoteDefinition = set('luccetFootnoteDef'),
+      blockquote = set('luccetQuote'), listItem = set('luccetListMarker'), ['html:generic'] = set('luccetHtmlBlock'),
+      ['html:rawtext'] = set('luccetHtmlBlock'), ['html:oneline'] = set('luccetHtmlBlock'),
+      ['html:comment'] = set('luccetHtmlComment'), ['html:inline'] = set('luccetHtmlInline', 'luccetHtmlComment'),
+      strong = set('luccetStrong', 'luccetStrongEmphasis'), emphasis = set('luccetEmphasis', 'luccetStrongEmphasis'),
+      delete = set('luccetStrike'), mark = set('luccetMark'), span = set('luccetSpan'),
+      link = set('luccetLink', 'luccetAutolink'), image = set('luccetLink'), thematicBreak = set('luccetRule'),
     }
-    local verbatim = set('ternFence', 'ternMathBlock', 'ternHtmlBlock', 'ternHtmlComment', 'ternMeta', 'ternMacros',
-      'ternRaw', 'ternReserved', 'ternHead')
+    local verbatim = set('luccetFence', 'luccetMathBlock', 'luccetHtmlBlock', 'luccetHtmlComment', 'luccetMeta', 'luccetMacros',
+      'luccetRaw', 'luccetReserved', 'luccetHead')
     local buf = note({})
     local agree, total, misses = 0, 0, {}
     for _, ex in ipairs(examples) do

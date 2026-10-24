@@ -1,21 +1,21 @@
 -- SPDX-License-Identifier: MIT
--- tern.format and the ftplugin's formatting options: = aligns the lines that
+-- luccet.format and the ftplugin's formatting options: = aligns the lines that
 -- continue a paragraph and nothing else, gq formats paragraphs only, and
 -- soft-wrapped list items line up.
 local api = vim.api
 
-local HEAD = '<!doctype html><meta charset="utf-8"><script src="tern.js"></script>'
+local HEAD = '<!doctype html><meta charset="utf-8"><script src="luccet.js"></script>'
 
 -- A note in the current window, with the ftplugin but no language server.
 local function note(lines)
   if vim.g.syntax_on == nil then
     vim.cmd('syntax enable')
   end
-  require('tern').setup({ lsp = false, render = { enabled = false } })
+  require('luccet').setup({ lsp = false, render = { enabled = false } })
   local buf = api.nvim_create_buf(true, false)
   api.nvim_set_current_buf(buf)
   api.nvim_buf_set_lines(buf, 0, -1, false, vim.list_extend({ HEAD }, lines))
-  vim.bo[buf].filetype = 'tern'
+  vim.bo[buf].filetype = 'luccet'
   -- Its text is not an undoable change: a script never waits for input, the
   -- moment that closes an undo block.
   vim.bo[buf].undolevels = vim.bo[buf].undolevels
@@ -28,7 +28,7 @@ end
 
 local function run(T, fn)
   local ok, err = pcall(fn)
-  require('tern').setup()
+  require('luccet').setup()
   if not ok then
     error(err, 0)
   end
@@ -39,10 +39,10 @@ return {
     run(T, function()
       local buf = note({ 'x' })
       T.eq(vim.bo.comments, 'n:>', 'quotes are the only comment leader')
-      T.eq(vim.bo.formatlistpat, require('tern.format').LIST, 'formatlistpat')
+      T.eq(vim.bo.formatlistpat, require('luccet.format').LIST, 'formatlistpat')
       T.ok(vim.bo.formatoptions:find('n', 1, true) and not vim.bo.formatoptions:find('t', 1, true), 'formatoptions: ' .. vim.bo.formatoptions)
-      T.eq(vim.bo.formatexpr, "v:lua.require'tern.format'.formatexpr()", 'formatexpr')
-      T.eq({ vim.bo.indentexpr, vim.bo.indentkeys }, { "v:lua.require'tern.format'.indent()", '' }, 'indentexpr, and no key re-indents')
+      T.eq(vim.bo.formatexpr, "v:lua.require'luccet.format'.formatexpr()", 'formatexpr')
+      T.eq({ vim.bo.indentexpr, vim.bo.indentkeys }, { "v:lua.require'luccet.format'.indent()", '' }, 'indentexpr, and no key re-indents')
       T.ok(vim.wo.breakindent and vim.wo.breakindentopt:find('list:-1', 1, true), 'breakindent')
       vim.bo[buf].filetype = 'text'
       T.eq({ vim.bo.indentexpr, vim.bo.formatexpr }, { '', '' }, 'undone with another filetype')

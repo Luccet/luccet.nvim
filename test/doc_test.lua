@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: MIT
--- doc/tern.txt against the code: its tags build, and it documents every
+-- doc/luccet.txt against the code: its tags build, and it documents every
 -- command, option and highlight group the plugin defines. :helptags runs on
 -- a copy of doc/, so the checkout gets no doc/tags file.
 local function read(path)
@@ -10,13 +10,13 @@ local function read(path)
 end
 
 local function doc(T)
-  return read(T.root .. '/doc/tern.txt')
+  return read(T.root .. '/doc/luccet.txt')
 end
 
--- The tags :helptags builds from doc/tern.txt, as a set.
+-- The tags :helptags builds from doc/luccet.txt, as a set.
 local function helptags(T)
   local dir = T.tmpdir()
-  T.write(dir .. '/tern.txt', doc(T))
+  T.write(dir .. '/luccet.txt', doc(T))
   local ok, err = pcall(vim.cmd.helptags, vim.fn.fnameescape(dir))
   T.ok(ok, ':helptags failed: ' .. tostring(err))
   local tags = {}
@@ -26,8 +26,8 @@ local function helptags(T)
   return tags
 end
 
--- Whether text holds word, not as part of a longer name (ternMath is not
--- found in ternMathBlock).
+-- Whether text holds word, not as part of a longer name (luccetMath is not
+-- found in luccetMathBlock).
 local function has_word(text, word)
   return text:find('%f[%w_.]' .. vim.pesc(word) .. '%f[^%w_.]') ~= nil
 end
@@ -35,8 +35,8 @@ end
 -- Every option path in config.defaults, nested ones as `render.labels`. Read
 -- from the source: an option whose default is nil (cmd) is not in the table.
 local function option_paths(T)
-  local block = read(T.root .. '/lua/tern/config.lua'):match('M%.defaults = (%b{})')
-  T.ok(block, 'M.defaults in lua/tern/config.lua')
+  local block = read(T.root .. '/lua/luccet/config.lua'):match('M%.defaults = (%b{})')
+  T.ok(block, 'M.defaults in lua/luccet/config.lua')
   local paths, stack = {}, {}
   for line in block:gmatch('[^\n]+') do
     local code = line:gsub('%s*%-%-.*$', '')
@@ -64,14 +64,14 @@ local function option_paths(T)
       end
     end
   end
-  walk(require('tern.config').defaults, '')
+  walk(require('luccet.config').defaults, '')
   return paths
 end
 
 return {
   { ':helptags builds the tags, none of them a duplicate', function(T)
     local text = doc(T)
-    T.ok(text:find('^%*tern%.txt%*'), 'the first line starts with *tern.txt*')
+    T.ok(text:find('^%*luccet%.txt%*'), 'the first line starts with *luccet.txt*')
     T.ok(text:find('\n%s*vim:tw=78:ts=8:ft=help:norl:%s*$'), 'the modeline ends the file')
     -- A tag defined twice fails :helptags (E154).
     local tags = helptags(T)
@@ -80,17 +80,17 @@ return {
       local tag = line:match('^[^\t]+')
       T.ok(not tags[tag], 'tag also defined by Neovim: ' .. tag)
     end
-    T.ok(tags['tern.txt'] and tags['tern'], 'the tags tern.txt and tern')
+    T.ok(tags['luccet.txt'] and tags['luccet'], 'the tags luccet.txt and luccet')
   end },
 
-  { 'every command in plugin/tern.lua has a *:Name* tag', function(T)
+  { 'every command in plugin/luccet.lua has a *:Name* tag', function(T)
     local tags = helptags(T)
     local names = {}
-    for name in read(T.root .. '/plugin/tern.lua'):gmatch("cmd%('(%w+)'") do
+    for name in read(T.root .. '/plugin/luccet.lua'):gmatch("cmd%('(%w+)'") do
       names[#names + 1] = name
-      T.ok(tags[':' .. name], 'doc/tern.txt has no *:' .. name .. '*')
+      T.ok(tags[':' .. name], 'doc/luccet.txt has no *:' .. name .. '*')
     end
-    T.ok(#names >= 6, 'found the commands in plugin/tern.lua')
+    T.ok(#names >= 6, 'found the commands in plugin/luccet.lua')
   end },
 
   { 'every option in config.defaults is documented', function(T)
@@ -98,8 +98,8 @@ return {
     local paths = option_paths(T)
     T.ok(vim.tbl_contains(paths, 'cmd') and vim.tbl_contains(paths, 'preview.browser'), 'options defaulting to nil')
     for _, path in ipairs(paths) do
-      T.ok(has_word(text, path), 'doc/tern.txt does not name the option ' .. path)
-      T.ok(tags['tern-option-' .. path], 'doc/tern.txt has no *tern-option-' .. path .. '*')
+      T.ok(has_word(text, path), 'doc/luccet.txt does not name the option ' .. path)
+      T.ok(tags['luccet-option-' .. path], 'doc/luccet.txt has no *luccet-option-' .. path .. '*')
     end
   end },
 
@@ -111,17 +111,17 @@ return {
         groups[#groups + 1] = group
       end
     end
-    T.ok(vim.tbl_contains(groups, 'TernVirtLabel'), 'found the TernVirt groups')
+    T.ok(vim.tbl_contains(groups, 'LuccetVirtLabel'), 'found the LuccetVirt groups')
     local n = #groups
-    for line in io.lines(T.root .. '/syntax/tern.vim') do
-      local group = line:match('^hi def link (tern[%w_]+)') or line:match('^hi def (tern[%w_]+)')
+    for line in io.lines(T.root .. '/syntax/luccet.vim') do
+      local group = line:match('^hi def link (luccet[%w_]+)') or line:match('^hi def (luccet[%w_]+)')
       if group then
         groups[#groups + 1] = group
       end
     end
-    T.ok(#groups - n >= 50, 'found the tern groups in syntax/tern.vim')
+    T.ok(#groups - n >= 50, 'found the luccet groups in syntax/luccet.vim')
     for _, group in ipairs(groups) do
-      T.ok(has_word(text, group), 'doc/tern.txt does not name the group ' .. group)
+      T.ok(has_word(text, group), 'doc/luccet.txt does not name the group ' .. group)
     end
   end },
 }

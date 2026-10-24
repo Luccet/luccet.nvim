@@ -1,13 +1,13 @@
 -- SPDX-License-Identifier: MIT
--- Options and their defaults. require('tern').setup(opts) merges opts over
--- them; every module reads require('tern.config').options at use time.
+-- Options and their defaults. require('luccet').setup(opts) merges opts over
+-- them; every module reads require('luccet.config').options at use time.
 local M = {}
 
 M.defaults = {
-  -- The language server command, e.g. { 'node', '/path/to/tern-cli.js', 'lsp' }.
-  -- nil: found per buffer (see tern.cli).
+  -- The language server command, e.g. { 'node', '/path/to/luccet-cli.js', 'lsp' }.
+  -- nil: found per buffer (see luccet.cli).
   cmd = nil,
-  -- Start `tern lsp` for notes: diagnostics, completion, rename, hover …
+  -- Start `luccet lsp` for notes: diagnostics, completion, rename, hover …
   lsp = true,
   -- Let the server watch the files under its root for changes made outside
   -- Neovim (an add-on edited elsewhere, a git checkout), through Neovim's
@@ -25,7 +25,7 @@ M.defaults = {
     math = true, -- simple TeX shown as Unicode beside the formula
     conceal = true, -- math, block and inline element syntax drawn in place of the source, but under the cursor
   },
-  -- :TernPreview, a local server that refreshes the browser as you type.
+  -- :LuccetPreview, a local server that refreshes the browser as you type.
   preview = {
     host = '127.0.0.1',
     port = 0, -- 0: any free port

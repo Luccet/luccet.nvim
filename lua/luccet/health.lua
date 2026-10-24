@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: MIT
--- :checkhealth tern: Neovim, node, the command line the buffer would use,
+-- :checkhealth luccet: Neovim, node, the command line the buffer would use,
 -- the language server, the buffer's detection and the options. The buffer
 -- is the one :checkhealth was run from, else the current directory's.
 local M = {}
@@ -18,7 +18,7 @@ local function target()
 end
 
 function M.check()
-  local cli = require('tern.cli')
+  local cli = require('luccet.cli')
   local buf = target()
   local name = buf and vim.api.nvim_buf_get_name(buf) or ''
   local where = name ~= '' and vim.fn.fnamemodify(name, ':~:.') or 'the current directory'
@@ -29,7 +29,7 @@ function M.check()
   if vim.fn.has('nvim-0.11') == 1 then
     h.ok('Neovim ' .. version)
   else
-    h.error('Neovim ' .. version .. ': tern.nvim needs 0.11 or later')
+    h.error('Neovim ' .. version .. ': luccet.nvim needs 0.11 or later')
   end
 
   h.start('Node')
@@ -41,39 +41,39 @@ function M.check()
   end
 
   h.start('Command line')
-  if vim.env.TERN_CLI and vim.env.TERN_CLI ~= '' then
-    h.info('$TERN_CLI is ' .. vim.env.TERN_CLI)
+  if vim.env.LUCCET_CLI and vim.env.LUCCET_CLI ~= '' then
+    h.info('$LUCCET_CLI is ' .. vim.env.LUCCET_CLI)
   end
   local info, reason = cli.find(buf)
   if info then
     local cmd = type(info.lsp) == 'table' and table.concat(info.lsp, ' ') or '(a function)'
     h.ok(('for %s, found by %s: %s'):format(where, info.how, cmd))
     if not info.cli then
-      h.warn('cmd has no `lsp` argument and no other source finds the CLI: :TernCheck and :TernBuild cannot run', { cli.fix })
+      h.warn('cmd has no `lsp` argument and no other source finds the CLI: :LuccetCheck and :LuccetBuild cannot run', { cli.fix })
     end
   else
     h.error(('for %s: %s'):format(where, reason))
   end
 
   h.start('Language server')
-  local o = require('tern.config').options
+  local o = require('luccet.config').options
   if not o.lsp then
     h.info('off (lsp = false in setup())')
   end
-  local clients = vim.lsp.get_clients({ name = 'tern' })
+  local clients = vim.lsp.get_clients({ name = 'luccet' })
   for _, c in ipairs(clients) do
     h.ok(('client %d, root %s, %d buffer(s)%s'):format(c.id, c.root_dir or '(none)', vim.tbl_count(c.attached_buffers), c:is_stopped() and ', stopping' or ''))
   end
   if #clients == 0 then
-    h.info('no tern client is running')
+    h.info('no luccet client is running')
   end
-  if buf and vim.bo[buf].filetype == 'tern' then
-    local c = require('tern.lsp').client(buf)
+  if buf and vim.bo[buf].filetype == 'luccet' then
+    local c = require('luccet.lsp').client(buf)
     if c then
-      local outline = require('tern.lsp').outline(buf)
+      local outline = require('luccet.lsp').outline(buf)
       h.ok(('this buffer is attached to client %d%s'):format(c.id, outline and ', outline received' or ', no outline yet'))
     elseif o.lsp then
-      h.warn('this note has no tern client', { 'See the Command line and Node sections above' })
+      h.warn('this note has no luccet client', { 'See the Command line and Node sections above' })
     end
   end
 
@@ -81,11 +81,11 @@ function M.check()
   if not buf then
     h.info('no file buffer')
   else
-    local d = require('tern.detect').buffer(buf)
+    local d = require('luccet.detect').buffer(buf)
     if d then
-      h.ok(('%s is a note: line %d loads tern.js with %s'):format(where, d.lnum, d.tag))
+      h.ok(('%s is a note: line %d loads luccet.js with %s'):format(where, d.lnum, d.tag))
     else
-      h.info(('%s is not a note: no line loads tern.js'):format(where))
+      h.info(('%s is not a note: no line loads luccet.js'):format(where))
     end
     h.info(("filetype is '%s'"):format(vim.bo[buf].filetype))
   end

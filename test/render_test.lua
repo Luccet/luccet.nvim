@@ -1,16 +1,16 @@
 -- SPDX-License-Identifier: MIT
--- tern.tex, and tern.render's virtual text from synthetic outlines and from
+-- luccet.tex, and luccet.render's virtual text from synthetic outlines and from
 -- the real server.
 local api = vim.api
 
 local function tex(s)
-  return require('tern.tex').unicode(s)
+  return require('luccet.tex').unicode(s)
 end
 
 -- The buffer's virtual text as { row, col, text, pos, hl } sorted by position.
 local function marks(buf)
   local out = {}
-  for _, m in ipairs(api.nvim_buf_get_extmarks(buf, require('tern.render').ns, 0, -1, { details = true })) do
+  for _, m in ipairs(api.nvim_buf_get_extmarks(buf, require('luccet.render').ns, 0, -1, { details = true })) do
     local d = m[4]
     local text, hls = {}, {}
     for _, chunk in ipairs(d.virt_text or {}) do
@@ -27,7 +27,7 @@ end
 -- The buffer's concealed ranges as { row, col, end_row, end_col }.
 local function concealed(buf)
   local out = {}
-  for _, m in ipairs(api.nvim_buf_get_extmarks(buf, require('tern.render').ns, 0, -1, { details = true })) do
+  for _, m in ipairs(api.nvim_buf_get_extmarks(buf, require('luccet.render').ns, 0, -1, { details = true })) do
     if m[4].conceal then
       out[#out + 1] = { m[2], m[3], m[4].end_row, m[4].end_col }
     end
@@ -38,7 +38,7 @@ end
 -- The buffer's tinted rows as { row, end_row }.
 local function tinted(buf)
   local out = {}
-  for _, m in ipairs(api.nvim_buf_get_extmarks(buf, require('tern.render').ns, 0, -1, { details = true })) do
+  for _, m in ipairs(api.nvim_buf_get_extmarks(buf, require('luccet.render').ns, 0, -1, { details = true })) do
     if m[4].line_hl_group then
       out[#out + 1] = { m[2], m[4].end_row, m[4].line_hl_group }
     end
@@ -49,7 +49,7 @@ end
 -- The buffer's highlighted ranges as { row, col, end_col, hl_group }.
 local function highlighted(buf)
   local out = {}
-  for _, m in ipairs(api.nvim_buf_get_extmarks(buf, require('tern.render').ns, 0, -1, { details = true })) do
+  for _, m in ipairs(api.nvim_buf_get_extmarks(buf, require('luccet.render').ns, 0, -1, { details = true })) do
     if m[4].hl_group and not m[4].virt_text then
       out[#out + 1] = { m[2], m[3], m[4].end_col, m[4].hl_group }
     end
@@ -77,9 +77,9 @@ local function empty()
   return { headings = {}, blocks = {}, refs = {}, math = {}, tables = {}, raw = {}, inline = {} }
 end
 
--- Replaces tern.lsp.outline for the duration of fn.
+-- Replaces luccet.lsp.outline for the duration of fn.
 local function with_outlines(outlines, fn)
-  local lsp = require('tern.lsp')
+  local lsp = require('luccet.lsp')
   local saved = lsp.outline
   lsp.outline = function(buf)
     return outlines[buf]
@@ -92,13 +92,13 @@ local function with_outlines(outlines, fn)
 end
 
 local function fire(buf)
-  api.nvim_exec_autocmds('User', { pattern = 'TernOutline', data = { buf = buf } })
+  api.nvim_exec_autocmds('User', { pattern = 'LuccetOutline', data = { buf = buf } })
 end
 
 -- A note with a numbered theorem, an equation with an id, a reference to
 -- each, inline math, and an emoji so UTF-16 columns differ from bytes.
 local LINES = {
-  '<!doctype html><script src="tern.js"></script>', -- 1
+  '<!doctype html><script src="luccet.js"></script>', -- 1
   '# Notes', -- 2
   ':::theorem[Main]{#t1}', -- 3
   'By 😀 @t1 and $\\alpha^2$ and $x$ and $e^{x^2}$.', -- 4
@@ -177,7 +177,7 @@ return {
 
   { 'tex: aligned environments line by line', function(T)
     local function lines(t)
-      return require('tern.tex').lines(t)
+      return require('luccet.tex').lines(t)
     end
     local cases = {
       { { '\\begin{align}', 'a &= b + c \\\\', '  &= d', '\\end{align}' }, { '', 'a = b + c', '  = d', '' } },
@@ -213,7 +213,7 @@ return {
 
   { 'tex: cases and matrices line by line, their delimiters as tall as their rows', function(T)
     local function lines(t)
-      return require('tern.tex').lines(t)
+      return require('luccet.tex').lines(t)
     end
     local cases = {
       { { 'f(x) = \\begin{cases}', '  1 & x > 0 \\\\', '  0 & x = 0 \\\\', '  -1 & x < 0', '\\end{cases}' },
@@ -271,7 +271,7 @@ return {
   end },
 
   { 'tex: macros are read from their definitions and expanded', function(T)
-    local tex = require('tern.tex')
+    local tex = require('luccet.tex')
     local m = tex.macros(table.concat({
       '\\gdef\\R{\\mathbb{R}}',
       '\\gdef\\norm#1{\\lVert #1 \\rVert}',
@@ -329,16 +329,16 @@ return {
 
   { 'labels, refs and math from an outline', function(T)
     local buf = buffer(LINES)
-    require('tern.render').draw(buf, outline())
+    require('luccet.render').draw(buf, outline())
     T.eq(marks(buf), {
-      { 2, 0, 'Theorem 1', 'eol', 'TernVirtLabel' }, -- the title is on the line
-      { 3, 11, ' Theorem 1', 'inline', 'TernVirtRef' }, -- after "@t1", past the 4-byte emoji
-      { 3, 26, ' α²', 'inline', 'TernVirtMath' }, -- after "$\alpha^2$"; $x$ and $e^{x^2}$ get nothing
-      { 7, 0, 'x² + y² = z²  (1)', 'eol', 'TernVirtMath,TernVirtLabel' }, -- the closing line
-      { 8, 7, ' (1)', 'inline', 'TernVirtRef' },
-      { 8, 22, ' Main', 'inline', 'TernVirtRef' }, -- after the whole reference, {ref=title} included
-      { 10, 0, 'Theorem 2', 'eol', 'TernVirtLabel' }, -- the opener after its attribute line
-      { 13, 0, 'Figure 1', 'eol', 'TernVirtLabel' }, -- "A *bold* cap" shows the title
+      { 2, 0, 'Theorem 1', 'eol', 'LuccetVirtLabel' }, -- the title is on the line
+      { 3, 11, ' Theorem 1', 'inline', 'LuccetVirtRef' }, -- after "@t1", past the 4-byte emoji
+      { 3, 26, ' α²', 'inline', 'LuccetVirtMath' }, -- after "$\alpha^2$"; $x$ and $e^{x^2}$ get nothing
+      { 7, 0, 'x² + y² = z²  (1)', 'eol', 'LuccetVirtMath,LuccetVirtLabel' }, -- the closing line
+      { 8, 7, ' (1)', 'inline', 'LuccetVirtRef' },
+      { 8, 22, ' Main', 'inline', 'LuccetVirtRef' }, -- after the whole reference, {ref=title} included
+      { 10, 0, 'Theorem 2', 'eol', 'LuccetVirtLabel' }, -- the opener after its attribute line
+      { 13, 0, 'Figure 1', 'eol', 'LuccetVirtLabel' }, -- "A *bold* cap" shows the title
     }, 'marks')
     T.eq(concealed(buf), {}, "'conceallevel' 0: every source shows")
   end },
@@ -346,14 +346,14 @@ return {
   { 'inline math shows in place of its source, but on the cursor line', function(T)
     local buf = buffer(LINES)
     vim.wo.conceallevel = 2
-    local render = require('tern.render')
+    local render = require('luccet.render')
     local function row4()
       return vim.iter(marks(buf)):filter(function(m)
-        return m[1] == 3 and m[5] == 'TernVirtMath'
+        return m[1] == 3 and m[5] == 'LuccetVirtMath'
       end):totable()
     end
-    local hidden = { { 3, 26, 'α²', 'inline', 'TernVirtMath' }, { 3, 34, 'x', 'inline', 'TernVirtMath' } }
-    local shown = { { 3, 26, ' α²', 'inline', 'TernVirtMath' } } -- $x$ reads the same as x
+    local hidden = { { 3, 26, 'α²', 'inline', 'LuccetVirtMath' }, { 3, 34, 'x', 'inline', 'LuccetVirtMath' } }
+    local shown = { { 3, 26, ' α²', 'inline', 'LuccetVirtMath' } } -- $x$ reads the same as x
     with_outlines({ [buf] = outline() }, function()
       render.attach(buf)
       T.eq(row4(), hidden, 'the cursor elsewhere: in place of the source')
@@ -382,12 +382,12 @@ return {
       go(4)
       fire(buf)
       T.eq(row4(), shown, 'and on the cursor line')
-      require('tern').setup({ render = { conceal = false } })
+      require('luccet').setup({ render = { conceal = false } })
       go(9)
       fire(buf)
       T.eq(concealed(buf), {}, 'render.conceal off: nothing hidden')
       T.eq(row4(), shown, 'and the Unicode form after the source')
-      require('tern').setup()
+      require('luccet').setup()
     end)
   end },
 
@@ -416,16 +416,16 @@ return {
       { line = 9, col = 1, endLine = 10, ['end'] = 7, display = true, tex = '\\sum_i x_i\n+ y' },
       { line = 11, col = 1, endLine = 13, ['end'] = 3, display = true, tex = 'e^{i\\pi}' },
     }
-    local render = require('tern.render')
+    local render = require('luccet.render')
     local closed = {
-      { 2, 8, 'α²', 'inline', 'TernVirtMath' }, -- in place of the TeX line
-      { 3, 0, '(1)', 'eol', 'TernVirtLabel' }, -- the number stays on the closing line
-      { 3, 8, '{#eq}', 'inline', 'TernVirtId' }, -- in place of "$$ {#eq}"
-      { 4, 0, '(2)', 'eol', 'TernVirtLabel' },
-      { 4, 7, 'x', 'inline', 'TernVirtMath' }, -- in place of "$$ x $$"
-      { 4, 13, ' {#e2}', 'inline', 'TernVirtId' },
-      { 6, 13, 'β + 1', 'inline', 'TernVirtMath' }, -- after the indentation
-      { 9, 0, '∑ᵢ xᵢ + y', 'eol', 'TernVirtMath' }, -- two lines: at the end, as before
+      { 2, 8, 'α²', 'inline', 'LuccetVirtMath' }, -- in place of the TeX line
+      { 3, 0, '(1)', 'eol', 'LuccetVirtLabel' }, -- the number stays on the closing line
+      { 3, 8, '{#eq}', 'inline', 'LuccetVirtId' }, -- in place of "$$ {#eq}"
+      { 4, 0, '(2)', 'eol', 'LuccetVirtLabel' },
+      { 4, 7, 'x', 'inline', 'LuccetVirtMath' }, -- in place of "$$ x $$"
+      { 4, 13, ' {#e2}', 'inline', 'LuccetVirtId' },
+      { 6, 13, 'β + 1', 'inline', 'LuccetVirtMath' }, -- after the indentation
+      { 9, 0, '∑ᵢ xᵢ + y', 'eol', 'LuccetVirtMath' }, -- two lines: at the end, as before
     }
     with_outlines({ [buf] = o }, function()
       render.attach(buf)
@@ -435,7 +435,7 @@ return {
       T.eq(concealed(buf), vim.list_extend(vim.list_extend({ { 1, 0, 1, 2 }, { 2, 0, 2, 8 }, { 3, 0, 3, 8 } }, one), list),
         'the sources hidden: $$, the TeX, and "$$ {#eq}"')
       local open = vim.list_slice(closed, 4)
-      table.insert(open, 1, { 3, 0, 'α²  (1)', 'eol', 'TernVirtMath,TernVirtLabel' })
+      table.insert(open, 1, { 3, 0, 'α²  (1)', 'eol', 'LuccetVirtMath,LuccetVirtLabel' })
       for _, line in ipairs({ 2, 3, 4 }) do
         go(line)
         T.eq(marks(buf), open, 'the cursor on line ' .. line .. ': the source, the Unicode form on the closing line')
@@ -450,13 +450,13 @@ return {
       T.eq(marks(buf), closed, 'all hidden')
       api.nvim_buf_set_lines(buf, 2, 3, false, { '\\alpha^3' })
       render.draw(buf, o)
-      T.eq(marks(buf)[1], { 3, 0, 'α²  (1)', 'eol', 'TernVirtMath,TernVirtLabel' }, 'a TeX line that changed: at the end')
-      require('tern').setup({ render = { conceal = false } })
+      T.eq(marks(buf)[1], { 3, 0, 'α²  (1)', 'eol', 'LuccetVirtMath,LuccetVirtLabel' }, 'a TeX line that changed: at the end')
+      require('luccet').setup({ render = { conceal = false } })
       api.nvim_buf_set_lines(buf, 2, 3, false, { '\\alpha^2' })
       render.draw(buf, o)
       T.eq(concealed(buf), {}, 'render.conceal off: nothing hidden')
-      T.eq(marks(buf)[1], { 3, 0, 'α²  (1)', 'eol', 'TernVirtMath,TernVirtLabel' }, 'and the Unicode form at the end')
-      require('tern').setup()
+      T.eq(marks(buf)[1], { 3, 0, 'α²  (1)', 'eol', 'LuccetVirtMath,LuccetVirtLabel' }, 'and the Unicode form at the end')
+      require('luccet').setup()
     end)
   end },
 
@@ -482,19 +482,19 @@ return {
         tex = '\\begin{align}\nf(x) &= x^2 + 1 \\\\\n  &\\ge 1\n\\end{align}' },
       { line = 8, col = 1, endLine = 12, ['end'] = 3, display = true, tex = '\\begin{cases}\ne^{i\\pi} & x > 0\n\\end{cases}' },
     }
-    local render = require('tern.render')
+    local render = require('luccet.render')
     with_outlines({ [buf] = o }, function()
       render.attach(buf)
       T.eq(marks(buf), {
-        { 3, 20, 'f(x) = x² + 1', 'inline', 'TernVirtMath' },
-        { 4, 10, '     ≥ 1', 'inline', 'TernVirtMath' }, -- ≥ under =
-        { 6, 0, '(1)', 'eol', 'TernVirtLabel' },
-        { 6, 10, '{#eq}', 'inline', 'TernVirtId' },
+        { 3, 20, 'f(x) = x² + 1', 'inline', 'LuccetVirtMath' },
+        { 4, 10, '     ≥ 1', 'inline', 'LuccetVirtMath' }, -- ≥ under =
+        { 6, 0, '(1)', 'eol', 'LuccetVirtLabel' },
+        { 6, 10, '{#eq}', 'inline', 'LuccetVirtId' },
       }, 'the rows, aligned at &')
       T.eq(concealed(buf), { { 1, 2, 1, 4 }, { 2, 2, 2, 15 }, { 3, 2, 3, 20 }, { 4, 2, 4, 10 }, { 5, 2, 5, 13 }, { 6, 2, 6, 10 } },
         'after the quote marks: $$, \\begin, the rows, \\end, "$$ {#eq}"')
       go(5)
-      T.eq(marks(buf), { { 6, 0, '(1)', 'eol', 'TernVirtLabel' } }, 'the cursor in it: the source, and the number')
+      T.eq(marks(buf), { { 6, 0, '(1)', 'eol', 'LuccetVirtLabel' } }, 'the cursor in it: the source, and the number')
       T.eq(concealed(buf), {}, 'nothing hidden')
     end)
   end },
@@ -514,19 +514,19 @@ return {
     local o = empty()
     o.math = { { line = 2, col = 1, endLine = 7, ['end'] = 3, display = true, number = '(2)',
       tex = table.concat(lines, '\n', 3, 6) } }
-    local render = require('tern.render')
+    local render = require('luccet.render')
     with_outlines({ [buf] = o }, function()
       render.attach(buf)
       T.eq(marks(buf), {
-        { 2, #lines[3], '       ⎧', 'inline', 'TernVirtMath' }, -- two rows: the brace starts on the \begin line
-        { 3, #lines[4], 'f(x) = ⎨ x²  x ≥ 0', 'inline', 'TernVirtMath' },
-        { 4, #lines[5], '       ⎩ 0   otherwise', 'inline', 'TernVirtMath' },
-        { 6, 0, '(2)', 'eol', 'TernVirtLabel' },
-        { 6, 10, '{#eq-f}', 'inline', 'TernVirtId' },
+        { 2, #lines[3], '       ⎧', 'inline', 'LuccetVirtMath' }, -- two rows: the brace starts on the \begin line
+        { 3, #lines[4], 'f(x) = ⎨ x²  x ≥ 0', 'inline', 'LuccetVirtMath' },
+        { 4, #lines[5], '       ⎩ 0   otherwise', 'inline', 'LuccetVirtMath' },
+        { 6, 0, '(2)', 'eol', 'LuccetVirtLabel' },
+        { 6, 10, '{#eq-f}', 'inline', 'LuccetVirtId' },
       }, 'the rows beside a brace, f(x) = on its middle')
       T.eq(#concealed(buf), 6, 'every line hidden: $$, \\begin, the rows, \\end, "$$ {#eq-f}"')
       go(4)
-      T.eq(marks(buf), { { 6, 0, '(2)', 'eol', 'TernVirtLabel' } }, 'the cursor in it: the source')
+      T.eq(marks(buf), { { 6, 0, '(2)', 'eol', 'LuccetVirtLabel' } }, 'the cursor in it: the source')
     end)
   end },
 
@@ -557,18 +557,18 @@ return {
       at(6, ':kbd[a', 'kbd'), -- not closed there
       { line = 7, col = 1, ['end'] = 8, name = 'kbd' }, -- a line that changed
     }
-    local render = require('tern.render')
+    local render = require('luccet.render')
     with_outlines({ [buf] = o }, function()
       render.attach(buf)
       local abbr = #'Press :kbd[Ctrl]+:kbd[S] 😀 :abbr[HTML]'
       local closed = {
-        { 1, abbr + #'{title="a b" #ab}', '{#ab}', 'inline', 'TernVirtId' },
-        { 2, 9, '₂', 'inline', 'TernInline' },
-        { 2, 22, '⁻¹', 'inline', 'TernInline' },
-        { 2, 40, '“', 'inline', 'TernInline' }, -- q between quotes
-        { 2, 48, '”{#q1}', 'inline', 'TernInline,TernVirtId' },
-        { 3, 12, '⟨wbr⟩', 'inline', 'TernVirtName' }, -- no content: the name
-        { 3, 28, '⟨term⟩{#t}', 'inline', 'TernVirtName,TernVirtId' },
+        { 1, abbr + #'{title="a b" #ab}', '{#ab}', 'inline', 'LuccetVirtId' },
+        { 2, 9, '₂', 'inline', 'LuccetInline' },
+        { 2, 22, '⁻¹', 'inline', 'LuccetInline' },
+        { 2, 40, '“', 'inline', 'LuccetInline' }, -- q between quotes
+        { 2, 48, '”{#q1}', 'inline', 'LuccetInline,LuccetVirtId' },
+        { 3, 12, '⟨wbr⟩', 'inline', 'LuccetVirtName' }, -- no content: the name
+        { 3, 28, '⟨term⟩{#t}', 'inline', 'LuccetVirtName,LuccetVirtId' },
       }
       T.eq(marks(buf), closed, 'the cursor elsewhere')
       T.eq(concealed(buf), {
@@ -578,17 +578,17 @@ return {
         { 3, 6, 3, 12 }, { 3, 17, 3, 28 }, { 3, 30, 3, 35 }, { 3, 38, 3, 39 },
       }, ':name[ and ]{…} hidden; sub, sup and empty ones whole')
       T.eq(highlighted(buf), {
-        { 1, 11, 15, 'TernInlineCode' }, { 1, 22, 23, 'TernInlineCode' }, { 1, 36, 40, 'TernInline' },
-        { 2, 29, 30, 'TernInline' }, { 2, 40, 42, 'TernInline' }, { 2, 59, 70, 'TernInline' }, { 2, 66, 69, 'TernInline' },
-        { 3, 35, 38, 'TernInlineCode' },
+        { 1, 11, 15, 'LuccetInlineCode' }, { 1, 22, 23, 'LuccetInlineCode' }, { 1, 36, 40, 'LuccetInline' },
+        { 2, 29, 30, 'LuccetInline' }, { 2, 40, 42, 'LuccetInline' }, { 2, 59, 70, 'LuccetInline' }, { 2, 66, 69, 'LuccetInline' },
+        { 3, 35, 38, 'LuccetInlineCode' },
       }, 'the content left to show, kbd as code; :sup[*] has no superscript: as an element')
       go(3)
       T.eq(marks(buf), { closed[1], closed[6], closed[7] }, 'the cursor on a line: its source')
       T.eq(#concealed(buf), 10, 'the other lines still hidden')
-      require('tern').setup({ render = { conceal = false } })
+      require('luccet').setup({ render = { conceal = false } })
       render.draw(buf, o)
       T.eq({ marks(buf), concealed(buf), highlighted(buf) }, { {}, {}, {} }, 'render.conceal off: nothing')
-      require('tern').setup()
+      require('luccet').setup()
     end)
   end },
 
@@ -626,20 +626,20 @@ return {
       { line = 15, endLine = 17, kind = 'container', name = 'macros', colons = 3 },
       { line = 18, endLine = 20, kind = 'container', name = 'chart', id = 'c', colons = 3 },
     }
-    local render = require('tern.render')
+    local render = require('luccet.render')
     local hidden = {
-      { 1, 11, '{#a1}', 'inline', 'TernVirtId' },
-      { 3, 11, 'Theorem 1 ', 'inline', 'TernVirtLabel' }, -- before the title, which stays
-      { 3, 39, ' {#t1}', 'inline', 'TernVirtId' }, -- the id of "{#t1 .big key=v}"
-      { 6, 8, 'Proof', 'inline', 'TernVirtLabel' },
-      { 9, 16, 'row', 'inline', 'TernVirtName' }, -- no label: the name
-      { 12, 9, 'Figure 1 ', 'inline', 'TernVirtLabel' },
-      { 12, 27, ' {#f1}', 'inline', 'TernVirtId' },
-      { 13, 14, '⟨toc⟩', 'inline', 'TernVirtName' }, -- a leaf: what the page puts there
-      { 14, 9, 'macros', 'inline', 'TernVirtVerbatim' },
-      { 17, 16, 'chart {#c}', 'inline', 'TernVirtVerbatim,TernVirtId' },
+      { 1, 11, '{#a1}', 'inline', 'LuccetVirtId' },
+      { 3, 11, 'Theorem 1 ', 'inline', 'LuccetVirtLabel' }, -- before the title, which stays
+      { 3, 39, ' {#t1}', 'inline', 'LuccetVirtId' }, -- the id of "{#t1 .big key=v}"
+      { 6, 8, 'Proof', 'inline', 'LuccetVirtLabel' },
+      { 9, 16, 'row', 'inline', 'LuccetVirtName' }, -- no label: the name
+      { 12, 9, 'Figure 1 ', 'inline', 'LuccetVirtLabel' },
+      { 12, 27, ' {#f1}', 'inline', 'LuccetVirtId' },
+      { 13, 14, '⟨toc⟩', 'inline', 'LuccetVirtName' }, -- a leaf: what the page puts there
+      { 14, 9, 'macros', 'inline', 'LuccetVirtVerbatim' },
+      { 17, 16, 'chart {#c}', 'inline', 'LuccetVirtVerbatim,LuccetVirtId' },
     }
-    local tints = { { 14, 16, 'TernVerbatim' }, { 17, 19, 'TernVerbatim' } } -- opener to closer
+    local tints = { { 14, 16, 'LuccetVerbatim' }, { 17, 19, 'LuccetVerbatim' } } -- opener to closer
     with_outlines({ [buf] = o }, function()
       render.attach(buf)
       T.eq(marks(buf), hidden, 'the cursor elsewhere')
@@ -655,27 +655,27 @@ return {
       go(4)
       local shown = vim.deepcopy(hidden)
       table.remove(shown, 3)
-      shown[2] = { 3, 0, 'Theorem 1', 'eol', 'TernVirtLabel' } -- as without conceal
+      shown[2] = { 3, 0, 'Theorem 1', 'eol', 'LuccetVirtLabel' } -- as without conceal
       T.eq(marks(buf), shown, 'the cursor on the opener: its source, and the label at the end')
       T.eq(#concealed(buf), 14, 'only that line shows: its two parts')
       go(6)
       T.eq(#concealed(buf), 15, 'the closer shows its source, the opener hides again')
       go(16)
       T.eq(tinted(buf), tints, 'the tint stays while the cursor is in a verbatim block')
-      require('tern').setup({ render = { labels = false } })
+      require('luccet').setup({ render = { labels = false } })
       go(1)
       fire(buf)
-      T.eq(marks(buf)[2], { 3, 11, 'theorem ', 'inline', 'TernVirtName' }, 'render.labels off: the name')
-      require('tern').setup({ render = { conceal = false } })
+      T.eq(marks(buf)[2], { 3, 11, 'theorem ', 'inline', 'LuccetVirtName' }, 'render.labels off: the name')
+      require('luccet').setup({ render = { conceal = false } })
       fire(buf)
       T.eq(concealed(buf), {}, 'render.conceal off: nothing hidden')
       T.eq(tinted(buf), {}, 'and nothing tinted')
       T.eq(marks(buf), {
-        { 3, 0, 'Theorem 1', 'eol', 'TernVirtLabel' },
-        { 6, 0, 'Proof', 'eol', 'TernVirtLabel' },
-        { 12, 0, 'Figure 1', 'eol', 'TernVirtLabel' },
+        { 3, 0, 'Theorem 1', 'eol', 'LuccetVirtLabel' },
+        { 6, 0, 'Proof', 'eol', 'LuccetVirtLabel' },
+        { 12, 0, 'Figure 1', 'eol', 'LuccetVirtLabel' },
       }, 'and the labels at the end of the line')
-      require('tern').setup()
+      require('luccet').setup()
       -- The outline lags: the opener is no longer a theorem.
       api.nvim_buf_set_lines(buf, 3, 4, false, { 'Plain text.' })
       fire(buf)
@@ -686,17 +686,17 @@ return {
   end },
 
   { 'the head stays folded, but while the cursor is in it', function(T)
-    require('tern').setup({ lsp = false })
+    require('luccet').setup({ lsp = false })
     local buf = api.nvim_create_buf(true, false)
     api.nvim_buf_set_lines(buf, 0, -1, false, {
-      '<!doctype html>', '<script>window.TERN = {}</script>', '<script src="tern.js"></script>', -- 1-3: the head
+      '<!doctype html>', '<script>window.LUCCET = {}</script>', '<script src="luccet.js"></script>', -- 1-3: the head
       '# A', 'x', 'y', '# B', 'z', -- 4-8
     })
     api.nvim_set_current_buf(buf)
     local fillchars = vim.go.fillchars
     local ok, err = pcall(function()
       vim.go.fillchars = 'eob: '
-      vim.bo[buf].filetype = 'tern' -- the ftplugin: folds by headings, and the virtual text
+      vim.bo[buf].filetype = 'luccet' -- the ftplugin: folds by headings, and the virtual text
       T.eq({ vim.fn.foldclosed(1), vim.fn.foldclosedend(1) }, { 1, 3 }, 'folded when the note opens')
       T.eq(vim.fn.foldtextresult(1), '⟨head⟩ schema', 'its summary')
       T.eq(vim.wo.fillchars, 'eob: ,fold: ', 'spaces after it, not dots; the other fillchars kept')
@@ -712,41 +712,41 @@ return {
       go(2)
       T.eq({ vim.fn.foldclosed(1), vim.fn.line('.') }, { -1, 2 }, 'into it from afar: open, the cursor where it went')
       go(6)
-      vim.cmd('TernRender off')
-      T.eq(vim.fn.foldclosed(1), -1, ':TernRender off: open')
+      vim.cmd('LuccetRender off')
+      T.eq(vim.fn.foldclosed(1), -1, ':LuccetRender off: open')
       go(1)
       go(6)
       T.eq(vim.fn.foldclosed(1), -1, 'and it stays open')
-      vim.cmd('TernRender on')
-      T.eq(vim.fn.foldclosed(1), 1, ':TernRender on: folded again')
+      vim.cmd('LuccetRender on')
+      T.eq(vim.fn.foldclosed(1), 1, ':LuccetRender on: folded again')
       T.eq(vim.fn.foldclosed(5), -1, 'and only the head')
       -- A fold character of your own stays.
       vim.go.fillchars = 'fold:-'
       local other = api.nvim_create_buf(true, false)
       api.nvim_buf_set_lines(other, 0, -1, false, api.nvim_buf_get_lines(buf, 0, -1, false))
       api.nvim_set_current_buf(other)
-      vim.bo[other].filetype = 'tern'
+      vim.bo[other].filetype = 'luccet'
       T.eq(vim.wo.fillchars, 'fold:-', 'your fold character')
     end)
     vim.go.fillchars = fillchars
-    require('tern').setup()
+    require('luccet').setup()
     if not ok then
       error(err, 0)
     end
   end },
 
   { 'without the plugin\'s folds, a one-line head is drawn in place', function(T)
-    local line = '<!doctype html><title>T</title><script src="tern.js"></script>'
+    local line = '<!doctype html><title>T</title><script src="luccet.js"></script>'
     local buf = buffer({ line, '# x', 'y' })
     vim.wo.conceallevel = 2
     api.nvim_win_set_cursor(0, { 3, 0 })
-    local render = require('tern.render')
+    local render = require('luccet.render')
     render.draw(buf, empty())
     T.eq(concealed(buf), {}, 'with them, the fold does it')
-    require('tern').setup({ fold = false })
+    require('luccet').setup({ fold = false })
     render.draw(buf, empty())
-    require('tern').setup()
-    T.eq(marks(buf), { { 0, #line, '⟨head⟩ T', 'inline', 'TernVirtVerbatim,TernVirtName' } }, 'the summary')
+    require('luccet').setup()
+    T.eq(marks(buf), { { 0, #line, '⟨head⟩ T', 'inline', 'LuccetVirtVerbatim,LuccetVirtName' } }, 'the summary')
     T.eq(concealed(buf), { { 0, 0, 0, #line } }, 'in place of the line')
   end },
 
@@ -764,20 +764,20 @@ return {
       { line = 2, endLine = 4, kind = 'rawtext' }, { line = 5, endLine = 7, kind = 'rawtext' },
       { line = 8, endLine = 8, kind = 'rawtext' }, { line = 9, endLine = 11, kind = 'rawtext' },
     }
-    require('tern.render').draw(buf, o)
+    require('luccet.render').draw(buf, o)
     T.eq(marks(buf), {
-      { 1, 7, 'style', 'inline', 'TernVirtVerbatim' },
-      { 4, 22, 'script', 'inline', 'TernVirtVerbatim' },
+      { 1, 7, 'style', 'inline', 'LuccetVirtVerbatim' },
+      { 4, 22, 'script', 'inline', 'LuccetVirtVerbatim' },
     }, 'the name in place of the start tag')
     T.eq(concealed(buf), { { 1, 0, 1, 7 }, { 3, 0, 3, 8 }, { 4, 0, 4, 22 }, { 6, 0, 6, 9 } }, 'the lines of the tags hidden')
-    T.eq(tinted(buf), { { 1, 3, 'TernVerbatim' }, { 4, 6, 'TernVerbatim' }, { 7, 7, 'TernVerbatim' } },
+    T.eq(tinted(buf), { { 1, 3, 'LuccetVerbatim' }, { 4, 6, 'LuccetVerbatim' }, { 7, 7, 'LuccetVerbatim' } },
       'tinted, a block on one line too; a textarea is no code')
   end },
 
-  { 'the note\'s macros, wherever their block is, and window.TERN\'s', function(T)
+  { 'the note\'s macros, wherever their block is, and window.LUCCET\'s', function(T)
     local buf = buffer({
-      '<script>window.TERN = { katex: { macros: { "\\\\C": "\\\\mathbb{C}", \'\\\\abs\': \'|#1|\' } } }</script>', -- 1
-      '<script src="tern.js"></script>', -- 2
+      '<script>window.LUCCET = { katex: { macros: { "\\\\C": "\\\\mathbb{C}", \'\\\\abs\': \'|#1|\' } } }</script>', -- 1
+      '<script src="luccet.js"></script>', -- 2
       'In $\\R^n$ and $\\C$, $\\abs{x} = \\norm{y}$, $\\bad$.', -- 3
       '$$', -- 4
       '\\begin{align}', -- 5
@@ -802,11 +802,11 @@ return {
     o.math = { math('\\R^n'), math('\\C'), math('\\abs{x} = \\norm{y}'), math('\\bad'),
       { line = 4, col = 1, endLine = 9, ['end'] = 3, display = true, tex = '\\begin{align}\n\\norm{x} &= \\R \\\\\n&= \\C\n\\end{align}' } }
     o.blocks = { { line = 10, endLine = 14, kind = 'container', name = 'macros', colons = 3 } }
-    require('tern.render').draw(buf, o)
+    require('luccet.render').draw(buf, o)
     local texts = vim.tbl_map(function(mk)
       return mk[3]
     end, vim.tbl_filter(function(mk)
-      return mk[5] == 'TernVirtMath'
+      return mk[5] == 'LuccetVirtMath'
     end, marks(buf)))
     T.eq(texts, { 'ℝⁿ', 'ℂ', '|x| = ‖y‖', '‖x‖ = ℝ', '    = ℂ' }, 'expanded; \\bad never ends, so its source stays')
   end },
@@ -816,22 +816,22 @@ return {
     vim.wo.conceallevel = 2
     local o = empty()
     o.math = { { line = 1, col = 3, endLine = 2, ['end'] = 9, display = false, tex = '\\alpha\n+ \\beta' } }
-    require('tern.render').draw(buf, o)
+    require('luccet.render').draw(buf, o)
     T.eq(concealed(buf), {}, 'no conceal')
-    T.eq(marks(buf), { { 1, 8, ' α + β', 'inline', 'TernVirtMath' } }, 'after the source')
+    T.eq(marks(buf), { { 1, 8, ' α + β', 'inline', 'LuccetVirtMath' } }, 'after the source')
   end },
 
   { 'a title not on the opener line follows an em dash', function(T)
     local buf = buffer({ ':::theorem{#t}', 'x', ':::' })
     local o = empty()
     o.blocks = { { line = 1, endLine = 3, kind = 'container', name = 'theorem', title = 'Zorn', label = 'Lemma 4', colons = 3 } }
-    require('tern.render').draw(buf, o)
-    T.eq(marks(buf), { { 0, 0, 'Lemma 4 — Zorn', 'eol', 'TernVirtLabel' } })
+    require('luccet.render').draw(buf, o)
+    T.eq(marks(buf), { { 0, 0, 'Lemma 4 — Zorn', 'eol', 'LuccetVirtLabel' } })
   end },
 
   { 'each kind follows its options.render flag', function(T)
     local buf = buffer(LINES)
-    local render = require('tern.render')
+    local render = require('luccet.render')
     local function kinds()
       local seen = {}
       for _, m in ipairs(marks(buf)) do
@@ -841,21 +841,21 @@ return {
       end
       return seen
     end
-    require('tern').setup({ render = { labels = false } })
+    require('luccet').setup({ render = { labels = false } })
     render.draw(buf, outline())
-    T.eq(kinds(), { TernVirtRef = true, TernVirtMath = true, TernVirtLabel = true }, 'the equation number stays with math')
+    T.eq(kinds(), { LuccetVirtRef = true, LuccetVirtMath = true, LuccetVirtLabel = true }, 'the equation number stays with math')
     T.ok(not vim.iter(marks(buf)):any(function(m)
       return m[3]:find('Theorem 1', 1, true) and m[4] == 'eol'
     end), 'no block label')
-    require('tern').setup({ render = { refs = false, math = false } })
+    require('luccet').setup({ render = { refs = false, math = false } })
     render.draw(buf, outline())
-    T.eq(kinds(), { TernVirtLabel = true }, 'labels only')
-    require('tern').setup()
+    T.eq(kinds(), { LuccetVirtLabel = true }, 'labels only')
+    require('luccet').setup()
   end },
 
   { 'a stale outline draws no errors and drops what no longer matches', function(T)
     local buf = buffer(LINES)
-    local render = require('tern.render')
+    local render = require('luccet.render')
     -- Lines deleted, a line shortened, columns past the end, lines past the end.
     api.nvim_buf_set_lines(buf, 1, 2, false, {})
     api.nvim_buf_set_lines(buf, 7, 8, false, { 'See @' })
@@ -875,9 +875,9 @@ return {
     T.eq(marks(buf), {}, 'malformed entries are skipped')
   end },
 
-  { 'TernOutline redraws; an outline older than the buffer is skipped', function(T)
+  { 'LuccetOutline redraws; an outline older than the buffer is skipped', function(T)
     local buf = buffer(LINES)
-    local render = require('tern.render')
+    local render = require('luccet.render')
     local outlines = {}
     with_outlines(outlines, function()
       render.attach(buf)
@@ -901,33 +901,33 @@ return {
     end)
   end },
 
-  { ':TernRender on, off and toggle, per buffer', function(T)
+  { ':LuccetRender on, off and toggle, per buffer', function(T)
     local buf = buffer(LINES)
     local other = api.nvim_create_buf(true, false)
     api.nvim_buf_set_lines(other, 0, -1, false, LINES)
-    local render = require('tern.render')
+    local render = require('luccet.render')
     with_outlines({ [buf] = outline(), [other] = outline() }, function()
       render.attach(buf)
       render.attach(other)
       T.eq(#marks(buf), 8, 'attached')
-      vim.cmd('TernRender off')
+      vim.cmd('LuccetRender off')
       T.eq(#marks(buf), 0, 'off')
       T.ok(not render.enabled(buf), 'disabled')
       T.eq(#marks(other), 8, 'the other buffer keeps its marks')
       fire(buf)
       T.eq(#marks(buf), 0, 'an outline does not redraw while off')
-      vim.cmd('TernRender')
+      vim.cmd('LuccetRender')
       T.eq(#marks(buf), 8, 'toggle: on')
-      vim.cmd('TernRender toggle')
+      vim.cmd('LuccetRender toggle')
       T.eq(#marks(buf), 0, 'toggle: off')
-      vim.cmd('TernRender on')
+      vim.cmd('LuccetRender on')
       T.eq(#marks(buf), 8, 'on')
       local errors = {}
       local notify = vim.notify
       vim.notify = function(msg)
         errors[#errors + 1] = msg
       end
-      vim.cmd('TernRender sideways')
+      vim.cmd('LuccetRender sideways')
       vim.notify = notify
       T.eq(#errors, 1, 'a bad argument is reported')
       T.eq(#marks(buf), 8, 'and changes nothing')
@@ -935,17 +935,17 @@ return {
   end },
 
   { 'highlights link by default and survive a colorscheme', function(T)
-    require('tern.render').attach(buffer({ 'x' }))
-    for _, name in ipairs({ 'TernVirtLabel', 'TernVirtRef', 'TernVirtMath', 'TernVirtName', 'TernVirtId', 'TernVirtVerbatim',
-      'TernVerbatim' }) do
+    require('luccet.render').attach(buffer({ 'x' }))
+    for _, name in ipairs({ 'LuccetVirtLabel', 'LuccetVirtRef', 'LuccetVirtMath', 'LuccetVirtName', 'LuccetVirtId', 'LuccetVirtVerbatim',
+      'LuccetVerbatim' }) do
       T.ok(api.nvim_get_hl(0, { name = name }).link, name .. ' is linked')
     end
-    api.nvim_set_hl(0, 'TernVirtRef', { link = 'Title' })
+    api.nvim_set_hl(0, 'LuccetVirtRef', { link = 'Title' })
     vim.cmd('doautocmd ColorScheme')
-    T.eq(api.nvim_get_hl(0, { name = 'TernVirtRef' }).link, 'Title', 'a user link wins (default = true)')
+    T.eq(api.nvim_get_hl(0, { name = 'LuccetVirtRef' }).link, 'Title', 'a user link wins (default = true)')
     vim.cmd('highlight clear')
     vim.cmd('doautocmd ColorScheme')
-    T.ok(api.nvim_get_hl(0, { name = 'TernVirtLabel' }).link, 'redefined after :highlight clear')
+    T.ok(api.nvim_get_hl(0, { name = 'LuccetVirtLabel' }).link, 'redefined after :highlight clear')
   end },
 
   { 'a 3,000-line note draws quickly', function(T)
@@ -963,7 +963,7 @@ return {
       o.math[#o.math + 1] = { line = i + 1, col = c + 1, endLine = i + 1, ['end'] = c + 3 + #tex1, display = false, tex = tex1 }
     end
     local buf = buffer(lines)
-    local render = require('tern.render')
+    local render = require('luccet.render')
     render.draw(buf, o) -- warm the TeX cache as a real session would
     local t0 = vim.uv.hrtime()
     render.draw(buf, o)
@@ -973,16 +973,16 @@ return {
   end },
 
   { 'end to end: the server\'s outline draws the label, the refs and the equation number', function(T)
-    local root = T.tern_root()
+    local root = T.luccet_root()
     if not root or vim.fn.executable('node') == 0 then
-      print('    (skipped: no Tern checkout or no node)')
+      print('    (skipped: no Luccet checkout or no node)')
       return
     end
     local dir = T.tmpdir()
     local file = T.write(dir .. '/note.html', table.concat({
-      '<!doctype html><meta charset="utf-8"><script>window.TERN = { schema: { block: { theorem: '
+      '<!doctype html><meta charset="utf-8"><script>window.LUCCET = { schema: { block: { theorem: '
         .. '{ tag: \'section\', counter: \'theorem\', label: (n) => `Theorem ${n}` } } } };</script>'
-        .. '<script src="tern.js"></script>',
+        .. '<script src="luccet.js"></script>',
       '# End to end', -- row 1
       '',
       ':::theorem[Main]{#t1}', -- row 3
@@ -996,11 +996,11 @@ return {
       'See @t1 and @eq.', -- row 11
       '',
     }, '\n'))
-    require('tern').setup({ cmd = { 'node', root .. '/tern-cli.js', 'lsp' } })
+    require('luccet').setup({ cmd = { 'node', root .. '/luccet-cli.js', 'lsp' } })
     local ok, err = pcall(function()
       vim.cmd.edit(file)
       local buf = api.nvim_get_current_buf()
-      T.eq(vim.bo[buf].filetype, 'tern', 'filetype')
+      T.eq(vim.bo[buf].filetype, 'luccet', 'filetype')
       local function find(row, text)
         for _, m in ipairs(marks(buf)) do
           if m[1] == row and m[3] == text then
@@ -1026,7 +1026,7 @@ return {
       end, 'redrawn after the edits: ' .. vim.inspect(marks(buf)))
       T.ok(find(4, 'Theorem 1 ') and find(10, '(1)') and find(9, 'x² + y² = z²'), 'the label and the equation moved down')
     end)
-    require('tern').setup()
+    require('luccet').setup()
     if not ok then
       error(err, 0)
     end
