@@ -1,6 +1,6 @@
 {
   "description": "Lines that make an HTML file a Luccet note, and lines that do not (docs/tools.html#detection). An editor tests each line of a file against pattern with flags, and the first line that matches is the luccet.js line: the head is what comes before the tag (group 1), and the note is every line after the line. Each match case gives the tag that group 1 must capture. pattern is the source of DETECT in cli/note.js; test/cli.js checks that they are the same and that every case holds.",
-  "pattern": "^(?:[^<]|<(?!!--)|<!--(?:[^-]|-(?!->))*-->)*?(<script(?=[\\s>/])(?![^<>]*\\s(?:async|defer|data-built)(?=[\\s=>/]|$))(?![^<>]*\\stype\\s*=\\s*[\"']?module(?=[\"'\\s>/]|$))[^<>]*?\\ssrc\\s*=\\s*([\"']?)(?:[^\"'\\s<>]*\\/)?luccet\\.js(?:[?#][^\"'\\s<>]*)?\\2(?=[\\s>/])[^<>]*>)",
+  "pattern": "^(?:[^<]|<(?!!--)|<!--(?:[^-]|-(?!->))*-->)*?(<script(?=[\\s>/])(?![^<>]*\\s(?:async|defer|nomodule|data-built)(?=[\\s=>/]|$))(?![^<>]*\\stype\\s*=\\s*(?:\"(?!\\s*(?:(?:text|application)\\/(?:x-)?(?:java|ecma)script|text\\/(?:jscript|livescript|javascript1\\.[0-5]))?\\s*\")|'(?!\\s*(?:(?:text|application)\\/(?:x-)?(?:java|ecma)script|text\\/(?:jscript|livescript|javascript1\\.[0-5]))?\\s*')|(?![\"'])(?!(?:(?:text|application)\\/(?:x-)?(?:java|ecma)script|text\\/(?:jscript|livescript|javascript1\\.[0-5]))(?=[\\s>/]|$))))[^<>]*?\\ssrc\\s*=\\s*([\"']?)(?:[^\"'\\s<>]*\\/)?luccet\\.js(?:[?#][^\"'\\s<>]*)?\\2(?=[\\s>/])[^<>]*>)",
   "flags": "i",
   "tagGroup": 1,
   "match": [
@@ -108,6 +108,26 @@
       "why": "async and defer as words in other attributes",
       "line": "<script src=\"luccet.js\" data-use=\"async.js defer.css\" data-async=\"1\"></script>",
       "tag": "<script src=\"luccet.js\" data-use=\"async.js defer.css\" data-async=\"1\">"
+    },
+    {
+      "why": "another JavaScript type",
+      "line": "<script type=\"application/javascript\" src=\"luccet.js\"></script>",
+      "tag": "<script type=\"application/javascript\" src=\"luccet.js\">"
+    },
+    {
+      "why": "an empty type is a classic script",
+      "line": "<script type=\"\" src=\"luccet.js\"></script>",
+      "tag": "<script type=\"\" src=\"luccet.js\">"
+    },
+    {
+      "why": "a type with spaces around it, in any case",
+      "line": "<script type=\" Text/JavaScript \" src=\"luccet.js\"></script>",
+      "tag": "<script type=\" Text/JavaScript \" src=\"luccet.js\">"
+    },
+    {
+      "why": "data-type is not type",
+      "line": "<script data-type=\"text/plain\" src=\"luccet.js\"></script>",
+      "tag": "<script data-type=\"text/plain\" src=\"luccet.js\">"
     }
   ],
   "noMatch": [
@@ -198,6 +218,30 @@
     {
       "why": "prose",
       "line": "Load luccet.js with a script tag."
+    },
+    {
+      "why": "a type the browser does not run",
+      "line": "<script type=\"text/plain\" src=\"luccet.js\"></script>"
+    },
+    {
+      "why": "a data block",
+      "line": "<script type=\"application/json\" src=\"luccet.js\"></script>"
+    },
+    {
+      "why": "an import map",
+      "line": "<script type=\"importmap\" src=\"luccet.js\"></script>"
+    },
+    {
+      "why": "a type after the src, unquoted",
+      "line": "<script src=\"luccet.js\" type=text/plain></script>"
+    },
+    {
+      "why": "a type with parameters is not a JavaScript type",
+      "line": "<script type=\"text/javascript; charset=utf-8\" src=\"luccet.js\"></script>"
+    },
+    {
+      "why": "nomodule, which today's browsers do not run",
+      "line": "<script nomodule src=\"luccet.js\"></script>"
     }
   ]
 }
