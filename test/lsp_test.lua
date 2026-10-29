@@ -1,10 +1,10 @@
 -- SPDX-License-Identifier: MIT
--- tern.lsp against the real server: a note in a temporary directory beside a
--- link to the Tern checkout's tern.js, so tern.cli finds tern-cli.js next to it.
-local lsp = require('tern.lsp')
+-- luccet.lsp against the real server: a note in a temporary directory beside a
+-- link to the Luccet checkout's luccet.js, so luccet.cli finds luccet-cli.js next to it.
+local lsp = require('luccet.lsp')
 
 local NOTE = [[
-<!doctype html><meta charset="utf-8"><script src="tern.js" data-use="theorems.js"></script>
+<!doctype html><meta charset="utf-8"><script src="luccet.js" data-use="theorems.js"></script>
 # Kernel {#kernel}
 
 See @kernel, @rn and @nowhere.
@@ -29,30 +29,30 @@ Again @kernel and [the kernel](#kernel).
 never closed
 ]]
 
-local THEOREMS = "tern.block('theorem', { tag: 'section', counter: 'theorem', label: 'Theorem' });\n"
+local THEOREMS = "luccet.block('theorem', { tag: 'section', counter: 'theorem', label: 'Theorem' });\n"
 
 -- Lets the answers in flight land. Neovim 0.11 asserts when a folding range
 -- arrives for a buffer that was unloaded meanwhile.
 local function settle()
   vim.wait(2000, function()
-    return vim.iter(vim.lsp.get_clients({ name = 'tern' })):all(function(c)
+    return vim.iter(vim.lsp.get_clients({ name = 'luccet' })):all(function(c)
       return next(c.requests) == nil
     end)
   end, 10)
   vim.wait(20)
 end
 
--- Runs fn(T) with $TERN_CLI unset and the default options.
+-- Runs fn(T) with $LUCCET_CLI unset and the default options.
 local function clean(fn)
   return function(T)
-    local env = vim.env.TERN_CLI
-    vim.env.TERN_CLI = nil
-    require('tern').setup()
+    local env = vim.env.LUCCET_CLI
+    vim.env.LUCCET_CLI = nil
+    require('luccet').setup()
     lsp._reset()
     local ok, err = pcall(fn, T)
     settle()
-    vim.env.TERN_CLI = env
-    require('tern').setup()
+    vim.env.LUCCET_CLI = env
+    require('luccet').setup()
     lsp._reset()
     if not ok then
       error(err, 0)
@@ -60,16 +60,16 @@ local function clean(fn)
   end
 end
 
--- Writes the note beside a link to tern.js; nil without a Tern checkout.
+-- Writes the note beside a link to luccet.js; nil without a Luccet checkout.
 local function files(T, text)
-  local root = T.tern_root()
+  local root = T.luccet_root()
   if not root then
-    print('    (skipped: no Tern checkout; set $TERN_ROOT)')
+    print('    (skipped: no Luccet checkout; set $LUCCET_ROOT)')
     return nil
   end
   root = vim.fs.normalize(vim.fn.fnamemodify(root, ':p')) -- for the link
   local dir = T.tmpdir()
-  assert(vim.uv.fs_symlink(root .. '/tern.js', dir .. '/tern.js'))
+  assert(vim.uv.fs_symlink(root .. '/luccet.js', dir .. '/luccet.js'))
   T.write(dir .. '/theorems.js', THEOREMS)
   return T.write(dir .. '/note.html', text or NOTE), root
 end
@@ -107,22 +107,22 @@ local function col_of(buf, lnum, text)
 end
 
 return {
-  { 'the client attaches; its diagnostics are those of tern check', clean(function(T)
+  { 'the client attaches; its diagnostics are those of luccet check', clean(function(T)
     local buf, path, root = open(T)
     if not buf then
       return
     end
     local c = lsp.client(buf)
-    T.eq(c.name, 'tern', 'name')
-    T.eq(c.root_dir, vim.fs.dirname(path), 'root: the directory holding tern.js')
+    T.eq(c.name, 'luccet', 'name')
+    T.eq(c.root_dir, vim.fs.dirname(path), 'root: the directory holding luccet.js')
 
-    local res = vim.system({ require('tern.cli').node().path, root .. '/tern-cli.js', 'check', '--json', path }, { text = true }):wait(10000)
+    local res = vim.system({ require('luccet.cli').node().path, root .. '/luccet-cli.js', 'check', '--json', path }, { text = true }):wait(10000)
     local want = {}
     for _, d in ipairs(vim.json.decode(res.stdout)) do
       local s, e = d.filePosition.start, d.filePosition['end']
       want[#want + 1] = { d.code, s.line - 1, s.column - 1, e.line - 1, e.column - 1 }
     end
-    T.ok(#want >= 2, 'tern check finds the dangling reference and the unclosed aside')
+    T.ok(#want >= 2, 'luccet check finds the dangling reference and the unclosed aside')
     T.wait(5000, function()
       return #vim.diagnostic.get(buf) == #want
     end, 'the diagnostics')
@@ -136,10 +136,10 @@ return {
     T.eq(got, want, 'diagnostics by code and position')
   end) },
 
-  { 'tern/outline arrives and fires User TernOutline', clean(function(T)
+  { 'luccet/outline arrives and fires User LuccetOutline', clean(function(T)
     local fired = {}
     local au = vim.api.nvim_create_autocmd('User', {
-      pattern = 'TernOutline',
+      pattern = 'LuccetOutline',
       callback = function(a)
         fired[#fired + 1] = a.data
       end,
@@ -151,7 +151,7 @@ return {
       end
       T.wait(2000, function()
         return #fired > 0
-      end, 'User TernOutline')
+      end, 'User LuccetOutline')
       T.eq(fired[1], { buf = buf }, 'data')
       local o = lsp.outline(buf)
       T.eq(o.uri, vim.uri_from_bufnr(buf), 'uri')
@@ -170,8 +170,8 @@ return {
       return
     end
     T.eq(vim.wo.foldmethod, 'expr', 'foldmethod')
-    T.eq(vim.wo.foldexpr, "v:lua.require'tern.lsp'.serverfold(v:lnum)", 'foldexpr')
-    T.eq(vim.wo.foldtext, "v:lua.require'tern.head'.foldtext()", 'foldtext')
+    T.eq(vim.wo.foldexpr, "v:lua.require'luccet.lsp'.serverfold(v:lnum)", 'foldexpr')
+    T.eq(vim.wo.foldtext, "v:lua.require'luccet.head'.foldtext()", 'foldtext')
     T.eq(vim.wo.foldminlines, 0, 'a one-line head can close')
     T.ok(vim.wo.fillchars:find('fold: ', 1, true), 'no dots after a closed fold: ' .. vim.wo.fillchars)
     T.ok(vim.wo.foldlevel >= 20, 'nothing starts folded')
@@ -182,8 +182,8 @@ return {
     T.eq(vim.lsp.foldexpr(6), '>2', 'the theorem opens a fold')
     T.eq({ vim.fn.foldlevel(2), vim.fn.foldlevel(7), vim.fn.foldlevel(12), vim.fn.foldlevel(14) }, { 1, 2, 2, 1 }, 'levels')
     T.eq(vim.fn.foldclosed(7), -1, 'open')
-    T.eq(require('tern.lsp').serverfold(1), '>2', 'the head, line 1, is a fold of its own')
-    T.eq(require('tern.lsp').serverfold(2), vim.lsp.foldexpr(2), 'the server folds the rest')
+    T.eq(require('luccet.lsp').serverfold(1), '>2', 'the head, line 1, is a fold of its own')
+    T.eq(require('luccet.lsp').serverfold(2), vim.lsp.foldexpr(2), 'the server folds the rest')
   end) },
 
   { 'completion offers a name after :::', clean(function(T)
@@ -289,7 +289,7 @@ return {
     if not buf then
       return
     end
-    local other = T.write(vim.fs.dirname(path) .. '/other.html', '<!doctype html><script src="tern.js"></script>\n# Other\n\nSee [the kernel](note.html#kernel).\n')
+    local other = T.write(vim.fs.dirname(path) .. '/other.html', '<!doctype html><script src="luccet.js"></script>\n# Other\n\nSee [the kernel](note.html#kernel).\n')
     vim.cmd.edit(other)
     local obuf = vim.api.nvim_get_current_buf()
     T.wait(5000, function()
@@ -315,7 +315,7 @@ return {
     if not buf then
       return
     end
-    T.write(vim.fs.dirname(path) .. '/sub/deep.html', '<!doctype html><script src="../tern.js"></script>\n## Kernels, again\n\n:::proof{#p1}\nx\n:::\n')
+    T.write(vim.fs.dirname(path) .. '/sub/deep.html', '<!doctype html><script src="../luccet.js"></script>\n## Kernels, again\n\n:::proof{#p1}\nx\n:::\n')
     local client = lsp.client(buf)
     local function names(query)
       local res = client:request_sync('workspace/symbol', { query = query }, 5000)
@@ -346,7 +346,7 @@ return {
     if not buf then
       return
     end
-    local other = T.write(vim.fs.dirname(path) .. '/other.html', '<!doctype html><script src="tern.js"></script>\n# Other\n')
+    local other = T.write(vim.fs.dirname(path) .. '/other.html', '<!doctype html><script src="luccet.js"></script>\n# Other\n')
     vim.cmd.edit(other)
     local buf2 = vim.api.nvim_get_current_buf()
     T.wait(5000, function()
@@ -366,7 +366,7 @@ return {
     vim.notify = function(msg, level)
       notices[#notices + 1] = { msg, level }
     end
-    require('tern').setup({ cmd = { 'tern-no-such-command', 'lsp' } })
+    require('luccet').setup({ cmd = { 'luccet-no-such-command', 'lsp' } })
     local ok, err = pcall(function()
       vim.cmd.edit(T.write(dir .. '/a.html', NOTE))
       vim.cmd.edit(T.write(dir .. '/b.html', NOTE))
@@ -374,9 +374,9 @@ return {
     vim.notify = notify
     assert(ok, err)
     T.eq(#notices, 1, 'notices: ' .. vim.inspect(notices))
-    T.ok(notices[1][1]:find('tern-no-such-command', 1, true) and notices[1][2] == vim.log.levels.WARN, notices[1][1])
+    T.ok(notices[1][1]:find('luccet-no-such-command', 1, true) and notices[1][2] == vim.log.levels.WARN, notices[1][1])
     T.eq(lsp.client(0), nil, 'client')
-    T.eq(vim.wo.foldexpr, "v:lua.require'tern.lsp'.foldexpr(v:lnum)", 'foldexpr')
+    T.eq(vim.wo.foldexpr, "v:lua.require'luccet.lsp'.foldexpr(v:lnum)", 'foldexpr')
     local levels = {}
     for l = 1, 19 do
       levels[l] = vim.fn.foldlevel(l)
@@ -386,7 +386,7 @@ return {
   end) },
 
   { 'a command that exits at once is not restarted', clean(function(T)
-    local node = require('tern.cli').node()
+    local node = require('luccet.cli').node()
     if not node.ok then
       print('    (skipped: ' .. node.reason .. ')')
       return
@@ -396,7 +396,7 @@ return {
     vim.notify = function(msg)
       notices[#notices + 1] = msg
     end
-    require('tern').setup({ cmd = { node.path, '-e', 'process.exit(2)', 'lsp' } })
+    require('luccet').setup({ cmd = { node.path, '-e', 'process.exit(2)', 'lsp' } })
     local ok, err = pcall(function()
       vim.cmd.edit(T.write(T.tmpdir() .. '/a.html', NOTE))
       T.wait(5000, function()
@@ -408,7 +408,7 @@ return {
     vim.notify = notify
     assert(ok, err)
     T.eq(lsp.client(0), nil, 'client')
-    T.eq(vim.wo.foldexpr, "v:lua.require'tern.lsp'.foldexpr(v:lnum)", 'folds by headings')
+    T.eq(vim.wo.foldexpr, "v:lua.require'luccet.lsp'.foldexpr(v:lnum)", 'folds by headings')
   end) },
 
   { 'a crashed server is restarted once', clean(function(T)
@@ -446,17 +446,17 @@ return {
     vim.notify = notify
     assert(ok, err)
     T.eq(lsp.client(buf), nil, 'no client')
-    T.eq(vim.wo.foldexpr, "v:lua.require'tern.lsp'.foldexpr(v:lnum)", 'folds by headings')
+    T.eq(vim.wo.foldexpr, "v:lua.require'luccet.lsp'.foldexpr(v:lnum)", 'folds by headings')
   end) },
 
-  { ':TernMove moves a note and fixes the links to it and in it; FROM may be a folder', clean(function(T)
-    local root = T.tern_root()
+  { ':LuccetMove moves a note and fixes the links to it and in it; FROM may be a folder', clean(function(T)
+    local root = T.luccet_root()
     if not root then
-      print('    (skipped: no Tern checkout; set $TERN_ROOT)')
+      print('    (skipped: no Luccet checkout; set $LUCCET_ROOT)')
       return
     end
     local dir = vim.fs.normalize(T.tmpdir())
-    assert(vim.uv.fs_symlink(vim.fs.normalize(vim.fn.fnamemodify(root, ':p')) .. '/tern.js', dir .. '/tern.js'))
+    assert(vim.uv.fs_symlink(vim.fs.normalize(vim.fn.fnamemodify(root, ':p')) .. '/luccet.js', dir .. '/luccet.js'))
     local function read(path)
       local f = io.open(path, 'rb')
       if not f then
@@ -467,11 +467,11 @@ return {
       return text
     end
     local HEAD = '<!doctype html><meta charset="utf-8"><script src="%s"></script>'
-    local MAPS = HEAD:format('../tern.js') .. '\n# Maps\n\n![k](img/k.svg)\n\nBack to [the contents](index.html).\n'
+    local MAPS = HEAD:format('../luccet.js') .. '\n# Maps\n\n![k](img/k.svg)\n\nBack to [the contents](index.html).\n'
     -- CRLF and no final line break: kept, byte for byte.
-    local INDEX = HEAD:format('../tern.js') .. '\r\n# Notes\r\n\r\n- [Maps](maps.html)\r\n- [Top](maps.html#top)'
-    local BASIS = HEAD:format('../../tern.js') .. '\n# Bases\n\nSee [maps](../maps.html).\n'
-    local DRAFT = HEAD:format('../tern.js') .. '\n# Draft\n'
+    local INDEX = HEAD:format('../luccet.js') .. '\r\n# Notes\r\n\r\n- [Maps](maps.html)\r\n- [Top](maps.html#top)'
+    local BASIS = HEAD:format('../../luccet.js') .. '\n# Bases\n\nSee [maps](../maps.html).\n'
+    local DRAFT = HEAD:format('../luccet.js') .. '\n# Draft\n'
     local maps = T.write(dir .. '/notes/maps.html', MAPS)
     T.write(dir .. '/notes/img/k.svg', '<svg xmlns="http://www.w3.org/2000/svg"/>')
     local index = T.write(dir .. '/notes/index.html', INDEX)
@@ -494,10 +494,10 @@ return {
       notices[#notices + 1] = { msg = msg, level = level }
     end
     local ok, err = pcall(function()
-      vim.cmd('TernMove ' .. dir .. '/notes/linear/')
+      vim.cmd('LuccetMove ' .. dir .. '/notes/linear/')
       local moved = dir .. '/notes/linear/maps.html'
       T.eq(read(maps), nil, 'the old file is gone')
-      T.eq(read(moved), MAPS:gsub('%.%./tern', '../../tern'):gsub('img/', '../img/'):gsub('%(index', '(../index'), 'its own links, from its new folder')
+      T.eq(read(moved), MAPS:gsub('%.%./luccet', '../../luccet'):gsub('img/', '../img/'):gsub('%(index', '(../index'), 'its own links, from its new folder')
       T.eq(vim.api.nvim_get_current_buf(), buf, 'the same buffer')
       T.eq(vim.fs.normalize(vim.api.nvim_buf_get_name(buf)), moved, 'renamed')
       T.eq(vim.bo[buf].modified, false, 'written')
@@ -513,7 +513,7 @@ return {
       T.eq(n.level, vim.log.levels.WARN, 'a warning: a buffer was not written')
 
       -- A folder, as FROM: the image's link in the moved note.
-      vim.cmd(('TernMove %s/notes/img %s/notes/pictures'):format(dir, dir))
+      vim.cmd(('LuccetMove %s/notes/img %s/notes/pictures'):format(dir, dir))
       T.ok(vim.uv.fs_stat(dir .. '/notes/pictures/k.svg') and not vim.uv.fs_stat(dir .. '/notes/img'), 'the folder moved')
       T.ok(read(moved):find('![k](../pictures/k.svg)', 1, true), read(moved))
       T.eq(vim.bo[buf].modified, false, 'written')

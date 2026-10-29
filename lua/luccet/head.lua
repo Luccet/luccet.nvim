@@ -1,12 +1,12 @@
 -- SPDX-License-Identifier: MIT
--- A note's head: its lines up to the tern.js line, which the page does not
--- show (the doctype, <meta>, <title>, a window.TERN script, styles). The
--- folds give it a fold of its own, and tern.render keeps that fold closed
+-- A note's head: its lines up to the luccet.js line, which the page does not
+-- show (the doctype, <meta>, <title>, a window.LUCCET script, styles). The
+-- folds give it a fold of its own, and luccet.render keeps that fold closed
 -- but while the cursor is in it.
 --   lines(buf)     -> the number of lines in the head, or nil (not a note)
 --   summary(buf)   -> virtual text chunks: ⟨head⟩, then what the head holds
---   macros(buf)    -> the macros of window.TERN.katex.macros, as
---                     tern.tex.macros returns them
+--   macros(buf)    -> the macros of window.LUCCET.katex.macros, as
+--                     luccet.tex.macros returns them
 --   foldtext()     -> 'foldtext' for notes: the summary on the head's fold,
 --                     Neovim's own on the others
 local M = {}
@@ -22,7 +22,7 @@ function M.lines(buf)
   local tick = api.nvim_buf_get_changedtick(buf)
   local c = cache[buf]
   if not c or c.tick ~= tick then
-    local d = require('tern.detect').buffer(buf)
+    local d = require('luccet.detect').buffer(buf)
     c = { tick = tick, lines = d and d.lnum or false, tag = d and d.tag }
     cache[buf] = c
   end
@@ -38,7 +38,7 @@ end
 function M.summary(buf)
   buf = (buf == nil or buf == 0) and api.nvim_get_current_buf() or buf
   local n = M.lines(buf)
-  local chunks = { { '⟨head⟩', 'TernVirtVerbatim' } }
+  local chunks = { { '⟨head⟩', 'LuccetVirtVerbatim' } }
   if not n then
     return chunks
   end
@@ -50,9 +50,9 @@ function M.summary(buf)
     local title = vim.trim(text:sub(open + 1, (low:find('</title', open, true) or #text + 1) - 1))
     items[#items + 1] = title ~= '' and title or nil
   end
-  local schema = text:find('window%.TERN') ~= nil
+  local schema = text:find('window%.LUCCET') ~= nil
   items[#items + 1] = schema and 'schema' or nil
-  -- Scripts besides tern.js and the schema's.
+  -- Scripts besides luccet.js and the schema's.
   local _, scripts = low:gsub('<script[%s>/]', '')
   local others = scripts - 1 - (schema and 1 or 0)
   items[#items + 1] = others == 1 and 'script' or others > 1 and others .. ' scripts' or nil
@@ -64,7 +64,7 @@ function M.summary(buf)
     if vim.fn.strchars(rest) > 72 then
       rest = vim.fn.strcharpart(rest, 0, 71) .. '…'
     end
-    chunks[2] = { ' ' .. rest, 'TernVirtName' }
+    chunks[2] = { ' ' .. rest, 'LuccetVirtName' }
   end
   return chunks
 end
@@ -133,7 +133,7 @@ function M.foldtext()
 end
 
 api.nvim_create_autocmd('BufWipeout', {
-  group = api.nvim_create_augroup('tern.head', { clear = true }),
+  group = api.nvim_create_augroup('luccet.head', { clear = true }),
   callback = function(a)
     cache[a.buf] = nil
   end,

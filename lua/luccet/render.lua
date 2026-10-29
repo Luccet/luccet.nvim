@@ -6,14 +6,14 @@
 -- its source, display math's $$ hidden too, a block's opener in place of
 -- its syntax, its attributes and closer hidden, and an inline element as its
 -- content; the source shows again while the cursor is on it. The head stays folded but while the cursor is in it
--- (tern.head). Each kind has its options.render flag.
---   attach(buf)          draw now, and again on each User TernOutline
---   command(args)        :TernRender [on|off|toggle], per buffer
+-- (luccet.head). Each kind has its options.render flag.
+--   attach(buf)          draw now, and again on each User LuccetOutline
+--   command(args)        :LuccetRender [on|off|toggle], per buffer
 --   draw(buf, outline)   draw an outline table (what the events call)
 local M = {}
 
 local api = vim.api
-local ns = api.nvim_create_namespace('tern_render')
+local ns = api.nvim_create_namespace('luccet_render')
 local state = {} -- buf -> { on, drawn, folded = { [win] = true }, inside = { [win] = bool }, row = { [win] = row } }
 -- buf -> { open = row, shown = { [id] = f } }: what is drawn in place of its
 -- source (a formula, a block's line), by the id of a mark over all of it. f
@@ -26,22 +26,22 @@ local inplace = {}
 local group
 
 local function highlights()
-  api.nvim_set_hl(0, 'TernVirtLabel', { link = 'Special', default = true })
-  api.nvim_set_hl(0, 'TernVirtRef', { link = 'Comment', default = true })
-  api.nvim_set_hl(0, 'TernVirtMath', { link = 'Comment', default = true })
-  api.nvim_set_hl(0, 'TernVirtName', { link = 'Comment', default = true })
-  api.nvim_set_hl(0, 'TernVirtId', { link = 'Identifier', default = true })
-  api.nvim_set_hl(0, 'TernVirtVerbatim', { link = 'PreProc', default = true })
-  api.nvim_set_hl(0, 'TernVerbatim', { link = 'ColorColumn', default = true })
-  api.nvim_set_hl(0, 'TernInline', { link = 'Special', default = true })
-  api.nvim_set_hl(0, 'TernInlineCode', { link = 'String', default = true })
+  api.nvim_set_hl(0, 'LuccetVirtLabel', { link = 'Special', default = true })
+  api.nvim_set_hl(0, 'LuccetVirtRef', { link = 'Comment', default = true })
+  api.nvim_set_hl(0, 'LuccetVirtMath', { link = 'Comment', default = true })
+  api.nvim_set_hl(0, 'LuccetVirtName', { link = 'Comment', default = true })
+  api.nvim_set_hl(0, 'LuccetVirtId', { link = 'Identifier', default = true })
+  api.nvim_set_hl(0, 'LuccetVirtVerbatim', { link = 'PreProc', default = true })
+  api.nvim_set_hl(0, 'LuccetVerbatim', { link = 'ColorColumn', default = true })
+  api.nvim_set_hl(0, 'LuccetInline', { link = 'Special', default = true })
+  api.nvim_set_hl(0, 'LuccetInlineCode', { link = 'String', default = true })
 end
 
 -- tex.unicode by TeX source, after the note's macros (tex.expand); a note
 -- repeats its formulas.
 local cache, cached = {}, 0
 local function unicode(tex, macros)
-  tex = require('tern.tex').expand(tex, macros)
+  tex = require('luccet.tex').expand(tex, macros)
   if not tex then
     return nil
   end
@@ -50,7 +50,7 @@ local function unicode(tex, macros)
     if cached > 4096 then
       cache, cached = {}, 0
     end
-    hit = require('tern.tex').unicode(tex) or false
+    hit = require('luccet.tex').unicode(tex) or false
     cache[tex], cached = hit, cached + 1
   end
   return hit or nil
@@ -178,7 +178,7 @@ local function squash(s)
 end
 
 local function math_text(text)
-  return text ~= '' and { { text, 'TernVirtMath' } } or nil
+  return text ~= '' and { { text, 'LuccetVirtMath' } } or nil
 end
 
 -- The id written in an attribute group, if any.
@@ -196,7 +196,7 @@ local function ids(groups, lead)
   for g in (groups or ''):gmatch('%b{}') do
     local id = idof(g)
     if id then
-      return { { lead .. '{#' .. id .. '}', 'TernVirtId' } }
+      return { { lead .. '{#' .. id .. '}', 'LuccetVirtId' } }
     end
   end
 end
@@ -206,7 +206,7 @@ local function attrs(rest)
   return rest:match('^%s*$') or rest:match('^%s*%b{}%s*$')
 end
 
--- The Unicode form of display math TeX lines, line by line (tern.tex.lines).
+-- The Unicode form of display math TeX lines, line by line (luccet.tex.lines).
 local function rows(tex, macros)
   if #tex == 1 then
     local u = unicode(tex[1], macros)
@@ -214,12 +214,12 @@ local function rows(tex, macros)
   end
   local expanded = {}
   for i, l in ipairs(tex) do
-    expanded[i] = require('tern.tex').expand(l, macros)
+    expanded[i] = require('luccet.tex').expand(l, macros)
     if not expanded[i] then
       return nil
     end
   end
-  return require('tern.tex').lines(expanded)
+  return require('luccet.tex').lines(expanded)
 end
 
 -- How display math m can be drawn in place: `$$ TeX $$` on one line; or a
@@ -327,7 +327,7 @@ local function label(b, line)
   if type(b.title) == 'string' and not visible(line, b.title) then
     text = text .. ' — ' .. shorten(b.title, 60)
   end
-  return { { text, 'TernVirtLabel' } }
+  return { { text, 'LuccetVirtLabel' } }
 end
 
 -- Raw HTML elements whose body is code: drawn like a verbatim block, the
@@ -347,7 +347,7 @@ local function rawcode(lines, r)
   local units = {}
   if r.endLine > r.line then
     if first:match('^[%s>]*<%a[%w-]*[^<>]*>%s*$') then
-      units[1] = { { { r.line - 1, #pre, #first, { { name, 'TernVirtVerbatim' } } } }, r.line - 1, #first }
+      units[1] = { { { r.line - 1, #pre, #first, { { name, 'LuccetVirtVerbatim' } } } }, r.line - 1, #first }
     end
     local cpre = last:lower():match('^([%s>]*)</' .. name .. '%s*>%s*$')
     if cpre then
@@ -379,11 +379,11 @@ local function block(lines, b, labels)
     return {}
   end
   local verbatim = b.kind == 'container' and (VERBATIM[b.name] or (' ' .. groups:sub(2, -2) .. ' '):find('%sraw[%s=]') ~= nil)
-  local head = { b.name, 'TernVirtName' }
+  local head = { b.name, 'LuccetVirtName' }
   if labels and type(b.label) == 'string' then
-    head = { b.label, 'TernVirtLabel' }
+    head = { b.label, 'LuccetVirtLabel' }
   elseif verbatim then
-    head[2] = 'TernVirtVerbatim'
+    head[2] = 'LuccetVirtVerbatim'
   elseif b.kind == 'leaf' then
     head[1] = '⟨' .. b.name .. '⟩'
   end
@@ -455,18 +455,18 @@ local function element(lines, byte, i)
   end
   local row, cs, ce = i.line - 1, s + #head, s + close - 1
   local id = ids(text:sub(close + 1), '') or {}
-  local script = (i.name == 'sub' or i.name == 'sup') and require('tern.tex').script(content, i.name)
+  local script = (i.name == 'sub' or i.name == 'sup') and require('luccet.tex').script(content, i.name)
   if content == '' or script then
-    local shown = script and { script, 'TernInline' } or { '⟨' .. i.name .. '⟩', 'TernVirtName' }
+    local shown = script and { script, 'LuccetInline' } or { '⟨' .. i.name .. '⟩', 'LuccetVirtName' }
     return { { row, s, e, vim.list_extend({ shown }, id) } }, row, e
   end
   local quote = i.name == 'q'
-  local after = vim.list_extend(quote and { { '”', 'TernInline' } } or {}, id)
+  local after = vim.list_extend(quote and { { '”', 'LuccetInline' } } or {}, id)
   local parts = {
-    { row, s, cs, quote and { { '“', 'TernInline' } } or nil },
+    { row, s, cs, quote and { { '“', 'LuccetInline' } } or nil },
     { row, ce, e, #after > 0 and after or nil },
   }
-  return parts, row, e, { cs, ce, CODELIKE[i.name] and 'TernInlineCode' or 'TernInline' }
+  return parts, row, e, { cs, ce, CODELIKE[i.name] and 'LuccetInlineCode' or 'LuccetInline' }
 end
 
 -- Draws the outline over the buffer, replacing what was drawn. A mark whose
@@ -485,7 +485,7 @@ function M.draw(buf, outline)
   if type(outline) ~= 'table' then
     return
   end
-  local opts = require('tern.config').options.render
+  local opts = require('luccet.config').options.render
   opts = type(opts) == 'table' and opts or {}
   local lines, byte = reader(buf)
   local function mark(row, col, o)
@@ -518,7 +518,7 @@ function M.draw(buf, outline)
       hide({ eol = u[4] }, u[1], u[2], u[3])
     end
     if tint then
-      mark(tint[1], 0, { end_row = tint[2], line_hl_group = 'TernVerbatim' })
+      mark(tint[1], 0, { end_row = tint[2], line_hl_group = 'LuccetVerbatim' })
     end
     local l = #units == 0 and opts.labels and type(b.label) == 'string' and opener(lines, b)
     if l then
@@ -533,7 +533,7 @@ function M.draw(buf, outline)
         hide({}, u[1], u[2], u[3])
       end
       if tint then
-        mark(tint[1], 0, { end_row = tint[2], line_hl_group = 'TernVerbatim' })
+        mark(tint[1], 0, { end_row = tint[2], line_hl_group = 'LuccetVerbatim' })
       end
     end
   end
@@ -549,8 +549,8 @@ function M.draw(buf, outline)
   end
 
   -- Without the plugin's folds, a one-line head is drawn in place.
-  if opts.conceal and not require('tern.config').options.fold and require('tern.head').lines(buf) == 1 then
-    hide({}, { { 0, 0, #lines[1], require('tern.head').summary(buf) } }, 0, #lines[1])
+  if opts.conceal and not require('luccet.config').options.fold and require('luccet.head').lines(buf) == 1 then
+    hide({}, { { 0, 0, #lines[1], require('luccet.head').summary(buf) } }, 0, #lines[1])
   end
 
   if opts.refs then
@@ -558,16 +558,16 @@ function M.draw(buf, outline)
       if r.resolved and type(r.text) == 'string' and r.text ~= '' and type(r.id) == 'string' then
         local s, e = byte(r.line, r.col), byte(r.line, r['end'])
         if s and e and lines[r.line]:sub(s + 1, s + 1 + #r.id) == '@' .. r.id then
-          mark(r.line - 1, e, { virt_text = { { ' ' .. shorten(r.text, 40), 'TernVirtRef' } }, virt_text_pos = 'inline' })
+          mark(r.line - 1, e, { virt_text = { { ' ' .. shorten(r.text, 40), 'LuccetVirtRef' } }, virt_text_pos = 'inline' })
         end
       end
     end
   end
 
   if opts.math then
-    -- The macros every formula shares: window.TERN's, then each :::macros
+    -- The macros every formula shares: window.LUCCET's, then each :::macros
     -- block's, in the note's order, wherever the formula is.
-    local macros = require('tern.head').macros(buf)
+    local macros = require('luccet.head').macros(buf)
     for _, b in ipairs(list(outline.blocks)) do
       local l = b.kind == 'container' and b.name == 'macros' and opener(lines, b)
       local last = l and math.min(tonumber(b.endLine) or l, #lines)
@@ -580,7 +580,7 @@ function M.draw(buf, outline)
             body[#body + 1] = lines[k]:sub(n + 1)
           end
         end
-        require('tern.tex').macros(table.concat(body, '\n'), macros)
+        require('luccet.tex').macros(table.concat(body, '\n'), macros)
       end
     end
     macros = next(macros) and macros or nil
@@ -598,21 +598,21 @@ function M.draw(buf, outline)
         -- one line of TeX before it while the source shows.
         local shown = {}
         if single and worth(m.tex, single) then
-          shown[1] = { single, 'TernVirtMath' }
+          shown[1] = { single, 'LuccetVirtMath' }
         end
         if number then
-          shown[#shown + 1] = { (#shown > 0 and '  ' or '') .. number, 'TernVirtLabel' }
+          shown[#shown + 1] = { (#shown > 0 and '  ' or '') .. number, 'LuccetVirtLabel' }
         end
-        hide({ eol = { hidden = number and { { number, 'TernVirtLabel' } }, shown = #shown > 0 and shown or nil } }, parts, erow, ecol)
+        hide({ eol = { hidden = number and { { number, 'LuccetVirtLabel' } }, shown = #shown > 0 and shown or nil } }, parts, erow, ecol)
       elseif m.display then
         -- At the end of the closing line, where its id is written.
         u = w and u or nil
         local chunks = {}
         if u then
-          chunks[#chunks + 1] = { u, 'TernVirtMath' }
+          chunks[#chunks + 1] = { u, 'LuccetVirtMath' }
         end
         if number then
-          chunks[#chunks + 1] = { (u and '  ' or '') .. number, 'TernVirtLabel' }
+          chunks[#chunks + 1] = { (u and '  ' or '') .. number, 'LuccetVirtLabel' }
         end
         if #chunks > 0 and lines[last] and lines[last]:find('$$', 1, true) then
           mark(last - 1, 0, { virt_text = chunks, virt_text_pos = 'eol' })
@@ -621,9 +621,9 @@ function M.draw(buf, outline)
         local s, e = byte(m.line, m.col), byte(last, m['end'])
         if s and e and e > 0 and lines[m.line]:sub(s + 1, s + 1) == '$' and lines[last]:sub(e, e) == '$' then
           if opts.conceal and m.line == last then
-            hide({ after = w and { { ' ' .. u, 'TernVirtMath' } } or nil }, { { last - 1, s, e, math_text(u) } }, last - 1, e)
+            hide({ after = w and { { ' ' .. u, 'LuccetVirtMath' } } or nil }, { { last - 1, s, e, math_text(u) } }, last - 1, e)
           elseif w then
-            mark(last - 1, e, { virt_text = { { ' ' .. u, 'TernVirtMath' } }, virt_text_pos = 'inline' })
+            mark(last - 1, e, { virt_text = { { ' ' .. u, 'LuccetVirtMath' } }, virt_text_pos = 'inline' })
           end
         end
       end
@@ -655,13 +655,13 @@ end
 
 local function heads(buf, how)
   local st = state[buf]
-  local n = st and st.on and require('tern.config').options.render.conceal and require('tern.head').lines(buf)
+  local n = st and st.on and require('luccet.config').options.render.conceal and require('luccet.head').lines(buf)
   if not n then
     return
   end
   local cur = api.nvim_get_current_win()
   for _, win in ipairs(vim.fn.win_findbuf(buf)) do
-    if require('tern.lsp').folding(win) then
+    if require('luccet.lsp').folding(win) then
       local row = api.nvim_win_get_cursor(win)[1]
       local was, before = st.inside[win], st.row[win]
       st.inside[win], st.row[win] = row <= n, row
@@ -689,7 +689,7 @@ local function heads(buf, how)
 end
 
 local function latest(buf)
-  local ok, lsp = pcall(require, 'tern.lsp')
+  local ok, lsp = pcall(require, 'luccet.lsp')
   return ok and lsp.outline and lsp.outline(buf) or nil
 end
 
@@ -722,7 +722,7 @@ local function setup()
     return
   end
   highlights()
-  group = api.nvim_create_augroup('tern_render', { clear = true })
+  group = api.nvim_create_augroup('luccet_render', { clear = true })
   api.nvim_create_autocmd('ColorScheme', { group = group, callback = highlights })
   api.nvim_create_autocmd('OptionSet', {
     group = group,
@@ -733,7 +733,7 @@ local function setup()
   })
   api.nvim_create_autocmd('User', {
     group = group,
-    pattern = 'TernOutline',
+    pattern = 'LuccetOutline',
     callback = function(ev)
       local buf = type(ev.data) == 'table' and ev.data.buf
       if buf and state[buf] then
@@ -790,7 +790,7 @@ function M.command(args)
   what = vim.trim(what)
   what = what == '' and 'toggle' or what
   if what ~= 'on' and what ~= 'off' and what ~= 'toggle' then
-    vim.notify('tern: :TernRender takes on, off or toggle', vim.log.levels.ERROR)
+    vim.notify('luccet: :LuccetRender takes on, off or toggle', vim.log.levels.ERROR)
     return
   end
   local buf = api.nvim_get_current_buf()

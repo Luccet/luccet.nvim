@@ -1,198 +1,247 @@
 {
-  "description": "Lines that make an HTML file a Tern note, and lines that do not (docs/tools.html#detection). An editor tests each line of a file against pattern with flags, and the first line that matches is the tern.js line: the head is what comes before the tag (group 1), and the note is every line after the line. Each match case gives the tag that group 1 must capture. pattern is the source of DETECT in cli/note.js; test/cli.js checks that they are the same and that every case holds.",
-  "pattern": "^(?:[^<]|<(?!!--)|<!--(?:[^-]|-(?!->))*-->)*?(<script(?=[\\s>/])(?![^<>]*\\s(?:async|defer|data-built)(?=[\\s=>/]|$))(?![^<>]*\\stype\\s*=\\s*[\"']?module(?=[\"'\\s>/]|$))[^<>]*?\\ssrc\\s*=\\s*([\"']?)(?:[^\"'\\s<>]*\\/)?tern\\.js(?:[?#][^\"'\\s<>]*)?\\2(?=[\\s>/])[^<>]*>)",
+  "description": "Lines that make an HTML file a Luccet note, and lines that do not (docs/tools.html#detection). An editor tests each line of a file against pattern with flags, and the first line that matches is the luccet.js line: the head is what comes before the tag (group 1), and the note is every line after the line. Each match case gives the tag that group 1 must capture. pattern is the source of DETECT in cli/note.js; test/cli.js checks that they are the same and that every case holds.",
+  "pattern": "^(?:[^<]|<(?!!--)|<!--(?:[^-]|-(?!->))*-->)*?(<script(?=[\\s>/])(?![^<>]*\\s(?:async|defer|nomodule|data-built)(?=[\\s=>/]|$))(?![^<>]*\\stype\\s*=\\s*(?:\"(?!\\s*(?:(?:text|application)\\/(?:x-)?(?:java|ecma)script|text\\/(?:jscript|livescript|javascript1\\.[0-5]))?\\s*\")|'(?!\\s*(?:(?:text|application)\\/(?:x-)?(?:java|ecma)script|text\\/(?:jscript|livescript|javascript1\\.[0-5]))?\\s*')|(?![\"'])(?!(?:(?:text|application)\\/(?:x-)?(?:java|ecma)script|text\\/(?:jscript|livescript|javascript1\\.[0-5]))(?=[\\s>/]|$))))[^<>]*?\\ssrc\\s*=\\s*([\"']?)(?:[^\"'\\s<>]*\\/)?luccet\\.js(?:[?#][^\"'\\s<>]*)?\\2(?=[\\s>/])[^<>]*>)",
   "flags": "i",
   "tagGroup": 1,
   "match": [
     {
       "why": "the canonical first line",
-      "line": "<!doctype html><meta charset=\"utf-8\"><script src=\"tern.js\"></script>",
-      "tag": "<script src=\"tern.js\">"
+      "line": "<!doctype html><meta charset=\"utf-8\"><script src=\"luccet.js\"></script>",
+      "tag": "<script src=\"luccet.js\">"
     },
     {
       "why": "the canonical first line with add-ons",
-      "line": "<!doctype html><meta charset=\"utf-8\"><script src=\"tern.js\" data-use=\"theorems.js theme.css\"></script>",
-      "tag": "<script src=\"tern.js\" data-use=\"theorems.js theme.css\">"
+      "line": "<!doctype html><meta charset=\"utf-8\"><script src=\"luccet.js\" data-use=\"theorems.js theme.css\"></script>",
+      "tag": "<script src=\"luccet.js\" data-use=\"theorems.js theme.css\">"
     },
     {
-      "why": "the line tern new --guarded writes",
-      "line": "<!doctype html><meta charset=\"utf-8\"><script src=\"tern.js\"></script><noscript><p>JavaScript is off; the source follows.</p><xmp hidden></noscript><script>self.tern||document.write('<p>tern.js did not load; the source follows.</p><xmp hidden>')</script></xmp><plaintext>",
-      "tag": "<script src=\"tern.js\">"
+      "why": "the line luccet new writes: the tag, then the guard",
+      "line": "<!doctype html><meta charset=\"utf-8\"><script src=\"luccet.js\"></script><noscript><p>JavaScript is off; the source follows.</p><xmp hidden></noscript><script>self.luccet||document.write('<p>luccet.js did not load; the source follows.</p><xmp hidden>')</script></xmp><plaintext style=\"white-space:pre-wrap\">",
+      "tag": "<script src=\"luccet.js\">"
+    },
+    {
+      "why": "the line luccet new --lang=fr writes: the guard in French, marked lang=fr, with a typographic apostrophe",
+      "line": "<!doctype html><meta charset=\"utf-8\"><script src=\"luccet.js\"></script><noscript><p lang=\"fr\">JavaScript est désactivé ; voici la source.</p><xmp hidden></noscript><script>self.luccet||document.write('<p lang=\"fr\">luccet.js n’a pas été chargé ; voici la source.</p><xmp hidden>')</script></xmp><plaintext lang=\"fr\" style=\"white-space:pre-wrap\">",
+      "tag": "<script src=\"luccet.js\">"
     },
     {
       "why": "a relative path",
-      "line": "<script src=\"../../tern.js\"></script>",
-      "tag": "<script src=\"../../tern.js\">"
+      "line": "<script src=\"../../luccet.js\"></script>",
+      "tag": "<script src=\"../../luccet.js\">"
     },
     {
       "why": "a root-relative path",
-      "line": "<script src=\"/tern.js\"></script>",
-      "tag": "<script src=\"/tern.js\">"
+      "line": "<script src=\"/luccet.js\"></script>",
+      "tag": "<script src=\"/luccet.js\">"
     },
     {
       "why": "a URL on a CDN",
-      "line": "<script src=\"https://cdn.jsdelivr.net/gh/OzkrAC/tern@1/tern.js\"></script>",
-      "tag": "<script src=\"https://cdn.jsdelivr.net/gh/OzkrAC/tern@1/tern.js\">"
+      "line": "<script src=\"https://cdn.jsdelivr.net/gh/Luccet/luccet@1/luccet.js\"></script>",
+      "tag": "<script src=\"https://cdn.jsdelivr.net/gh/Luccet/luccet@1/luccet.js\">"
     },
     {
       "why": "single quotes",
-      "line": "<script src='tern.js'></script>",
-      "tag": "<script src='tern.js'>"
+      "line": "<script src='luccet.js'></script>",
+      "tag": "<script src='luccet.js'>"
     },
     {
       "why": "no quotes",
-      "line": "<script src=tern.js></script>",
-      "tag": "<script src=tern.js>"
+      "line": "<script src=luccet.js></script>",
+      "tag": "<script src=luccet.js>"
     },
     {
       "why": "spaces around =",
-      "line": "<script src = \"tern.js\"></script>",
-      "tag": "<script src = \"tern.js\">"
+      "line": "<script src = \"luccet.js\"></script>",
+      "tag": "<script src = \"luccet.js\">"
     },
     {
       "why": "a query string",
-      "line": "<script src=\"tern.js?v=2\"></script>",
-      "tag": "<script src=\"tern.js?v=2\">"
+      "line": "<script src=\"luccet.js?v=2\"></script>",
+      "tag": "<script src=\"luccet.js?v=2\">"
     },
     {
       "why": "a fragment",
-      "line": "<script src=\"lib/tern.js#x\"></script>",
-      "tag": "<script src=\"lib/tern.js#x\">"
+      "line": "<script src=\"lib/luccet.js#x\"></script>",
+      "tag": "<script src=\"lib/luccet.js#x\">"
     },
     {
       "why": "attributes before and after src",
-      "line": "<script nonce=\"r4nd0m\" src=\"tern.js\" data-katex=\"none\"></script>",
-      "tag": "<script nonce=\"r4nd0m\" src=\"tern.js\" data-katex=\"none\">"
+      "line": "<script nonce=\"r4nd0m\" src=\"luccet.js\" data-katex=\"none\"></script>",
+      "tag": "<script nonce=\"r4nd0m\" src=\"luccet.js\" data-katex=\"none\">"
     },
     {
       "why": "a classic script type",
-      "line": "<script type=\"text/javascript\" src=\"tern.js\"></script>",
-      "tag": "<script type=\"text/javascript\" src=\"tern.js\">"
+      "line": "<script type=\"text/javascript\" src=\"luccet.js\"></script>",
+      "tag": "<script type=\"text/javascript\" src=\"luccet.js\">"
     },
     {
       "why": "upper case tag and attribute",
-      "line": "<SCRIPT SRC=\"tern.js\"></SCRIPT>",
-      "tag": "<SCRIPT SRC=\"tern.js\">"
+      "line": "<SCRIPT SRC=\"luccet.js\"></SCRIPT>",
+      "tag": "<SCRIPT SRC=\"luccet.js\">"
     },
     {
       "why": "upper case file name (detection is case-insensitive throughout)",
-      "line": "<script src=\"TERN.JS\"></script>",
-      "tag": "<script src=\"TERN.JS\">"
+      "line": "<script src=\"LUCCET.JS\"></script>",
+      "tag": "<script src=\"LUCCET.JS\">"
     },
     {
       "why": "the tag in the middle of the line, after head elements",
-      "line": "<html lang=\"de\"><title>Notizen</title><script src=\"tern.js\"></script>",
-      "tag": "<script src=\"tern.js\">"
+      "line": "<html lang=\"de\"><title>Notizen</title><script src=\"luccet.js\"></script>",
+      "tag": "<script src=\"luccet.js\">"
     },
     {
       "why": "text after the tag on the same line",
-      "line": "<script src=\"tern.js\"></script> <!-- the note starts on the next line -->",
-      "tag": "<script src=\"tern.js\">"
+      "line": "<script src=\"luccet.js\"></script> <!-- the note starts on the next line -->",
+      "tag": "<script src=\"luccet.js\">"
     },
     {
       "why": "a closed comment before the tag",
-      "line": "<!-- my notes --><script src=\"tern.js\"></script>",
-      "tag": "<script src=\"tern.js\">"
+      "line": "<!-- my notes --><script src=\"luccet.js\"></script>",
+      "tag": "<script src=\"luccet.js\">"
     },
     {
       "why": "a data-src before the real src",
-      "line": "<script data-src=\"x.js\" src=\"tern.js\"></script>",
-      "tag": "<script data-src=\"x.js\" src=\"tern.js\">"
+      "line": "<script data-src=\"x.js\" src=\"luccet.js\"></script>",
+      "tag": "<script data-src=\"x.js\" src=\"luccet.js\">"
     },
     {
       "why": "async and defer as words in other attributes",
-      "line": "<script src=\"tern.js\" data-use=\"async.js defer.css\" data-async=\"1\"></script>",
-      "tag": "<script src=\"tern.js\" data-use=\"async.js defer.css\" data-async=\"1\">"
+      "line": "<script src=\"luccet.js\" data-use=\"async.js defer.css\" data-async=\"1\"></script>",
+      "tag": "<script src=\"luccet.js\" data-use=\"async.js defer.css\" data-async=\"1\">"
+    },
+    {
+      "why": "another JavaScript type",
+      "line": "<script type=\"application/javascript\" src=\"luccet.js\"></script>",
+      "tag": "<script type=\"application/javascript\" src=\"luccet.js\">"
+    },
+    {
+      "why": "an empty type is a classic script",
+      "line": "<script type=\"\" src=\"luccet.js\"></script>",
+      "tag": "<script type=\"\" src=\"luccet.js\">"
+    },
+    {
+      "why": "a type with spaces around it, in any case",
+      "line": "<script type=\" Text/JavaScript \" src=\"luccet.js\"></script>",
+      "tag": "<script type=\" Text/JavaScript \" src=\"luccet.js\">"
+    },
+    {
+      "why": "data-type is not type",
+      "line": "<script data-type=\"text/plain\" src=\"luccet.js\"></script>",
+      "tag": "<script data-type=\"text/plain\" src=\"luccet.js\">"
     }
   ],
   "noMatch": [
     {
-      "why": "a file named mytern.js",
-      "line": "<script src=\"mytern.js\"></script>"
+      "why": "a file named myluccet.js",
+      "line": "<script src=\"myluccet.js\"></script>"
     },
     {
-      "why": "a file named tern.json",
-      "line": "<script src=\"tern.json\"></script>"
+      "why": "a file named luccet.json",
+      "line": "<script src=\"luccet.json\"></script>"
     },
     {
-      "why": "a file named tern.min.js (the file name is exactly tern.js)",
-      "line": "<script src=\"tern.min.js\"></script>"
+      "why": "a file named luccet.min.js (the file name is exactly luccet.js)",
+      "line": "<script src=\"luccet.min.js\"></script>"
     },
     {
-      "why": "tern.js.map",
-      "line": "<script src=\"tern.js.map\"></script>"
+      "why": "luccet.js.map",
+      "line": "<script src=\"luccet.js.map\"></script>"
     },
     {
-      "why": "tern-cli.js",
-      "line": "<script src=\"tern-cli.js\"></script>"
+      "why": "luccet-cli.js",
+      "line": "<script src=\"luccet-cli.js\"></script>"
     },
     {
       "why": "a commented-out tag",
-      "line": "<!-- <script src=\"tern.js\"></script> -->"
+      "line": "<!-- <script src=\"luccet.js\"></script> -->"
     },
     {
       "why": "a tag inside a comment that the line does not close",
-      "line": "<!-- <script src=\"tern.js\"></script>"
+      "line": "<!-- <script src=\"luccet.js\"></script>"
     },
     {
-      "why": "defer: tern.js would not capture the note",
-      "line": "<script defer src=\"tern.js\"></script>"
+      "why": "defer: luccet.js would not capture the note",
+      "line": "<script defer src=\"luccet.js\"></script>"
     },
     {
-      "why": "async: tern.js would not capture the note",
-      "line": "<script src=\"tern.js\" async></script>"
+      "why": "async: luccet.js would not capture the note",
+      "line": "<script src=\"luccet.js\" async></script>"
     },
     {
       "why": "async with a value",
-      "line": "<script src=\"tern.js\" async=\"\"></script>"
+      "line": "<script src=\"luccet.js\" async=\"\"></script>"
     },
     {
       "why": "upper case DEFER",
-      "line": "<script src=\"tern.js\" DEFER></script>"
+      "line": "<script src=\"luccet.js\" DEFER></script>"
     },
     {
       "why": "a module script",
-      "line": "<script type=\"module\" src=\"tern.js\"></script>"
+      "line": "<script type=\"module\" src=\"luccet.js\"></script>"
     },
     {
       "why": "a module script, unquoted",
-      "line": "<script type=module src=\"tern.js\"></script>"
+      "line": "<script type=module src=\"luccet.js\"></script>"
     },
     {
-      "why": "a page written by tern build",
-      "line": "<script data-built src=\"tern.js\"></script>"
+      "why": "a page written by luccet build",
+      "line": "<script data-built src=\"luccet.js\"></script>"
     },
     {
-      "why": "a page written by tern build, with formulas left",
-      "line": "<script data-built=\"math\" src=\"tern.js\" data-use=\"x.js\"></script>"
+      "why": "a page written by luccet build, with formulas left",
+      "line": "<script data-built=\"math\" src=\"luccet.js\" data-use=\"x.js\"></script>"
     },
     {
       "why": "data-src is not src",
-      "line": "<script data-src=\"tern.js\"></script>"
+      "line": "<script data-src=\"luccet.js\"></script>"
     },
     {
       "why": "not a script: a preload",
-      "line": "<link rel=\"preload\" href=\"tern.js\" as=\"script\">"
+      "line": "<link rel=\"preload\" href=\"luccet.js\" as=\"script\">"
     },
     {
       "why": "not a script: an image",
-      "line": "<img src=\"tern.js\">"
+      "line": "<img src=\"luccet.js\">"
     },
     {
       "why": "not a script: noscript",
-      "line": "<noscript src=\"tern.js\"></noscript>"
+      "line": "<noscript src=\"luccet.js\"></noscript>"
     },
     {
       "why": "not a script: scripts",
-      "line": "<scripts src=\"tern.js\"></scripts>"
+      "line": "<scripts src=\"luccet.js\"></scripts>"
     },
     {
       "why": "an escaped tag in text",
-      "line": "&lt;script src=\"tern.js\"&gt;&lt;/script&gt;"
+      "line": "&lt;script src=\"luccet.js\"&gt;&lt;/script&gt;"
     },
     {
       "why": "prose",
-      "line": "Load tern.js with a script tag."
+      "line": "Load luccet.js with a script tag."
+    },
+    {
+      "why": "a type the browser does not run",
+      "line": "<script type=\"text/plain\" src=\"luccet.js\"></script>"
+    },
+    {
+      "why": "a data block",
+      "line": "<script type=\"application/json\" src=\"luccet.js\"></script>"
+    },
+    {
+      "why": "an import map",
+      "line": "<script type=\"importmap\" src=\"luccet.js\"></script>"
+    },
+    {
+      "why": "a type after the src, unquoted",
+      "line": "<script src=\"luccet.js\" type=text/plain></script>"
+    },
+    {
+      "why": "a type with parameters is not a JavaScript type",
+      "line": "<script type=\"text/javascript; charset=utf-8\" src=\"luccet.js\"></script>"
+    },
+    {
+      "why": "nomodule, which today's browsers do not run",
+      "line": "<script nomodule src=\"luccet.js\"></script>"
     }
   ]
 }

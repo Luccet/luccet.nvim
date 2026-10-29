@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: MIT
--- :TernPreview serves the current note's project over HTTP from inside
+-- :LuccetPreview serves the current note's project over HTTP from inside
 -- Neovim (vim.uv TCP, a minimal HTTP/1.1) and refreshes the browser when a
 -- file under it is written, and, with preview.update 'change', as a note's
 -- buffer changes.
@@ -8,8 +8,8 @@
 --   M.info()       {root, url, host, port, clients} of the running server, or nil
 --
 -- Roots and ports. One server per Neovim, rooted at the note's project (the
--- nearest folder holding tern.js or .git, else the note's folder); a file's
--- URL is its path under the root. :TernPreview on a file inside the running
+-- nearest folder holding luccet.js or .git, else the note's folder); a file's
+-- URL is its path under the root. :LuccetPreview on a file inside the running
 -- root reuses the server. On a file outside it, the server moves to that
 -- file's root: with preview.port 0 it keeps its port when it can, so pages
 -- of the old root reload into a 404 instead of retrying forever.
@@ -24,9 +24,9 @@
 -- file or folder whose name starts with a dot is served, nor anything but
 -- regular files (a FIFO would hang a read); no directory listings.
 --
--- Live reload. A served note (an .html that tern.detect calls one) gets
--- data-diagnostics on its tern.js tag, and <script src="/__tern/live.js">
--- just before that tag, on the same line. tern.js takes everything after
+-- Live reload. A served note (an .html that luccet.detect calls one) gets
+-- data-diagnostics on its luccet.js tag, and <script src="/__tern/live.js">
+-- just before that tag, on the same line. luccet.js takes everything after
 -- its line as the note (<plaintext>), so nothing can go after it; on the
 -- line, a tag without line breaks keeps every file line where it was, and
 -- the runtime counts the same lines before the note, so the diagnostics
@@ -42,10 +42,10 @@
 -- file is served again.
 local uv = vim.uv
 local bit = require('bit')
-local config = require('tern.config')
+local config = require('luccet.config')
 -- Required here: request handlers run in luv callbacks, where a first
 -- require would search the runtimepath through the API.
-local detect = require('tern.detect')
+local detect = require('luccet.detect')
 
 local M = {}
 
@@ -109,13 +109,13 @@ local REASONS = {
 -- The browser side. On a write of a file under the root, or a change to a
 -- note's buffer, the server sends {"changed": [{path, note}]}. For this page's own file, it fetches the raw
 -- file and splits it as the runtime does: the note is everything after the
--- tern.js line (data-line), with CR LF and CR read as LF and NUL as U+FFFD,
+-- luccet.js line (data-line), with CR LF and CR read as LF and NUL as U+FFFD,
 -- like the HTML parser's input. If the lines up to it still hash to
--- data-head, it calls tern.render(main.tern, note) and keeps the scroll;
+-- data-head, it calls luccet.render(main.luccet, note) and keeps the scroll;
 -- otherwise, or for a written file that is not a note (CSS, an add-on, an
 -- image), it reloads, keeping the scroll through sessionStorage. Writes of
 -- other notes are ignored. The stream opens once the note has rendered
--- (tern.ready, or after 5 s for a page tern.js does not render); when it
+-- (luccet.ready, or after 5 s for a page luccet.js does not render); when it
 -- drops, it reopens with a backoff and reloads once the server is back.
 local LIVE = [==[
 (function () {
@@ -125,7 +125,7 @@ local LIVE = [==[
   var path = me.getAttribute('data-path');
   var line = Number(me.getAttribute('data-line')) || 0;
   var head = me.getAttribute('data-head');
-  var key = 'tern-preview-scroll:' + path;
+  var key = 'luccet-preview-scroll:' + path;
   var rendered = false, started = false, dropped = false, busy = false, again = false, wait = 500;
 
   // A reload restores the scroll itself once the note has rendered; the
@@ -152,8 +152,8 @@ local LIVE = [==[
   }
 
   function refresh() {
-    var main = document.querySelector('main.tern');
-    if (!line || !rendered || !main || !window.tern) return reload();
+    var main = document.querySelector('main.luccet');
+    if (!line || !rendered || !main || !window.luccet) return reload();
     if (busy) { again = true; return; }
     busy = true;
     var y = window.scrollY;
@@ -168,14 +168,14 @@ local LIVE = [==[
         if (hash(b, at + 1) !== head) return reload();
         var note = new TextDecoder('utf-8', { ignoreBOM: true }).decode(b.subarray(at + 1))
           .replace(/\r\n?/g, '\n').replace(/\0/g, '�');
-        return window.tern.render(main, note).then(function () {
+        return window.luccet.render(main, note).then(function () {
           if (window.scrollY !== y) window.scrollTo(window.scrollX, y);
           busy = false;
           if (again) { again = false; refresh(); }
         });
       })
       .catch(function (e) {
-        console.warn('tern preview: reloading the page:', e);
+        console.warn('luccet preview: reloading the page:', e);
         reload();
       });
   }
@@ -223,7 +223,7 @@ local LIVE = [==[
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    var t = window.tern;
+    var t = window.luccet;
     if (t && t.ready) t.ready.then(function () { rendered = true; start(); });
     setTimeout(start, 5000);
   });
@@ -511,14 +511,14 @@ local function attr(tag, name)
 end
 
 -- The note's page as served: the live script and data-diagnostics on the
--- tern.js line (see the header). nil when body is not a note.
+-- luccet.js line (see the header). nil when body is not a note.
 local function inject(body, path)
   local pos, lnum = 1, 0
   while lnum < detect.max_lines and pos <= #body do
     lnum = lnum + 1
     local nl = body:find('\n', pos, true)
     local line = body:sub(pos, (nl or #body + 1) - 1)
-    local d = line:lower():find('tern.js', 1, true) and detect.line(line)
+    local d = line:lower():find('luccet.js', 1, true) and detect.line(line)
     if d then
       local tag = d.tag
       -- Same-document refresh needs the tag closed on its line, so that the
@@ -581,7 +581,7 @@ local function events(conn, no_body)
   end
   conn.state = 'events'
   conn.responded = true
-  conn.sock:write('HTTP/1.1 200 OK\r\n' .. COMMON .. 'Content-Type: text/event-stream\r\n\r\n: tern\n\n')
+  conn.sock:write('HTTP/1.1 200 OK\r\n' .. COMMON .. 'Content-Type: text/event-stream\r\n\r\n: luccet\n\n')
   conn.srv.clients[conn] = true
 end
 
@@ -718,7 +718,7 @@ local function listen(root, real, prefer)
     local ai = uv.getaddrinfo(host, nil, { socktype = 'stream' })
     addr = ai and ai[1] and ai[1].addr
     if not addr then
-      return nil, ('tern: cannot serve the preview: preview.host %q does not resolve'):format(host)
+      return nil, ('luccet: cannot serve the preview: preview.host %q does not resolve'):format(host)
     end
   end
   local tcp, err
@@ -733,7 +733,7 @@ local function listen(root, real, prefer)
       or err == 'EACCES' and 'permission denied; choose a port above 1023'
       or err == 'EADDRNOTAVAIL' and 'this machine has no such address'
       or tostring(err)
-    return nil, ('tern: cannot serve the preview on %s:%d: %s'):format(url_host(host), port, why)
+    return nil, ('luccet: cannot serve the preview on %s:%d: %s'):format(url_host(host), port, why)
   end
   srv.tcp = tcp
   srv.port = tcp:getsockname().port
@@ -879,12 +879,12 @@ local function open(url)
     cmd[#cmd + 1] = url
     local ok, err = pcall(vim.system, cmd, { detach = true, stdout = false, stderr = false })
     if not ok then
-      notify(('tern: cannot run the browser %s: %s'):format(cmd[1], err), vim.log.levels.WARN)
+      notify(('luccet: cannot run the browser %s: %s'):format(cmd[1], err), vim.log.levels.WARN)
     end
   else
     local _, err = vim.ui.open(url)
     if err then
-      notify('tern: cannot open a browser: ' .. err, vim.log.levels.WARN)
+      notify('luccet: cannot open a browser: ' .. err, vim.log.levels.WARN)
     end
   end
 end
@@ -894,15 +894,15 @@ function M.start()
   local name = vim.api.nvim_buf_get_name(buf)
   local real = name ~= '' and uv.fs_realpath(name)
   if not real then
-    return notify(name == '' and 'tern: this buffer has no file to preview' or 'tern: write the file before previewing it', vim.log.levels.WARN)
+    return notify(name == '' and 'luccet: this buffer has no file to preview' or 'luccet: write the file before previewing it', vim.log.levels.WARN)
   end
   real = norm(real)
   local moved
   if not (S and inside(S, real)) then
-    local root = vim.fs.root(buf, { 'tern.js', '.git' }) or vim.fs.dirname(name)
+    local root = vim.fs.root(buf, { 'luccet.js', '.git' }) or vim.fs.dirname(name)
     local root_real = uv.fs_realpath(root)
     if not root_real then
-      return notify('tern: cannot read the folder ' .. root, vim.log.levels.ERROR)
+      return notify('luccet: cannot read the folder ' .. root, vim.log.levels.ERROR)
     end
     local prefer = S and S.port
     moved = S and S.root
@@ -912,11 +912,11 @@ function M.start()
     end
     local srv, err = listen(root, norm(root_real), prefer)
     if not srv then
-      pcall(vim.api.nvim_del_augroup_by_name, 'tern_preview')
+      pcall(vim.api.nvim_del_augroup_by_name, 'luccet_preview')
       return notify(err, vim.log.levels.ERROR)
     end
     S = srv
-    local g = vim.api.nvim_create_augroup('tern_preview', { clear = true })
+    local g = vim.api.nvim_create_augroup('luccet_preview', { clear = true })
     vim.api.nvim_create_autocmd('BufWritePost', {
       group = g,
       callback = function(a)
@@ -957,14 +957,14 @@ function M.start()
   end
   local rel = inside(S, real)
   if not rel then
-    return notify(('tern: %s is a link to a file outside %s, which the preview does not serve'):format(name, S.root), vim.log.levels.ERROR)
+    return notify(('luccet: %s is a link to a file outside %s, which the preview does not serve'):format(name, S.root), vim.log.levels.ERROR)
   elseif dotted(rel) then
-    return notify(('tern: %s is hidden (a name starting with a dot), which the preview does not serve'):format(rel), vim.log.levels.WARN)
+    return notify(('luccet: %s is hidden (a name starting with a dot), which the preview does not serve'):format(rel), vim.log.levels.WARN)
   end
   local live = config.options.preview.update ~= 'write'
   local url = S.base .. '/' .. encode(rel)
-  local msg = moved and ('tern: the preview moved from %s to %s: %s'):format(vim.fn.fnamemodify(moved, ':~'), vim.fn.fnamemodify(S.root, ':~'), url)
-    or 'tern: preview at ' .. url
+  local msg = moved and ('luccet: the preview moved from %s to %s: %s'):format(vim.fn.fnamemodify(moved, ':~'), vim.fn.fnamemodify(S.root, ':~'), url)
+    or 'luccet: preview at ' .. url
   if vim.bo[buf].modified and not live then
     msg = msg .. ' (write the buffer to show your changes)'
   end
@@ -978,12 +978,12 @@ end
 function M.stop(quiet)
   local srv = S
   S = nil
-  pcall(vim.api.nvim_del_augroup_by_name, 'tern_preview')
+  pcall(vim.api.nvim_del_augroup_by_name, 'luccet_preview')
   if srv then
     shutdown(srv)
   end
   if not quiet then
-    notify(srv and 'tern: preview stopped' or 'tern: no preview is running')
+    notify(srv and 'luccet: preview stopped' or 'luccet: no preview is running')
   end
 end
 

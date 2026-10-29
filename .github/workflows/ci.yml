@@ -1,5 +1,5 @@
-# The plugin's tests, against the Tern engine they are a client of: a
-# checkout of OzkrAC/tern beside this one, named by TERN_ROOT. The engine
+# The plugin's tests, against the Luccet engine they are a client of: a
+# checkout of Luccet/luccet beside this one, named by LUCCET_ROOT. The engine
 # does not test the plugin; the dependency runs this one way.
 name: ci
 
@@ -13,16 +13,16 @@ permissions:
 
 jobs:
   test:
-    name: tests against Tern's main (Neovim stable)
+    name: tests against Luccet's main (Neovim stable)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
-          path: tern.nvim
+          path: luccet.nvim
       - uses: actions/checkout@v7
         with:
-          repository: OzkrAC/tern
-          path: tern
+          repository: Luccet/luccet
+          path: luccet
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -32,6 +32,6 @@ jobs:
           version: stable
       - run: nvim --version | head -1
       - run: nvim --headless -u NONE -l test/run.lua
-        working-directory: tern.nvim
+        working-directory: luccet.nvim
         env:
-          TERN_ROOT: ${{ github.workspace }}/tern
+          LUCCET_ROOT: ${{ github.workspace }}/luccet

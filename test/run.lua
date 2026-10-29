@@ -4,20 +4,20 @@
 -- Each test/*_test.lua returns a list of { name, fn }; fn gets the helpers
 -- below and fails by raising an error. FILTER keeps the tests whose
 -- "file: name" contains it. Exit status: 0 when all pass.
--- The Tern engine (for the language server) is $TERN_ROOT, else a checkout
--- next to this one: ../tern.
+-- The Luccet engine (for the language server) is $LUCCET_ROOT, else a checkout
+-- next to this one: ../luccet.
 local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h'))
 vim.opt.runtimepath:prepend(root)
 vim.cmd('filetype plugin on')
-vim.cmd('runtime plugin/tern.lua')
+vim.cmd('runtime plugin/luccet.lua')
 
 local T = {}
 T.root = root
 
-function T.tern_root()
-  -- Not a list literal: an unset $TERN_ROOT would be a nil hole that ipairs stops at.
-  for _, dir in ipairs({ vim.env.TERN_ROOT or false, root .. '/../tern' }) do
-    if dir and vim.uv.fs_stat(dir .. '/tern-cli.js') then
+function T.luccet_root()
+  -- Not a list literal: an unset $LUCCET_ROOT would be a nil hole that ipairs stops at.
+  for _, dir in ipairs({ vim.env.LUCCET_ROOT or false, root .. '/../luccet' }) do
+    if dir and vim.uv.fs_stat(dir .. '/luccet-cli.js') then
       return vim.fs.normalize(vim.fn.fnamemodify(dir, ':p'))
     end
   end

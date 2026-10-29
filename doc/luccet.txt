@@ -1,161 +1,161 @@
-*tern.txt*  Neovim support for Tern notes
+*luccet.txt*  Neovim support for Luccet notes
 
 Author:   OzkrAC
-License:  MIT, see |tern-license|
-Tern:     https://github.com/OzkrAC/tern
+License:  MIT, see |luccet-license|
+Luccet:     https://github.com/Luccet/luccet
 
 ==============================================================================
-CONTENTS                                                       *tern-contents*
+CONTENTS                                                       *luccet-contents*
 
-   1. Introduction .............................................. |tern-intro|
-   2. Requirements ....................................... |tern-requirements|
-   3. Installation ....................................... |tern-installation|
-   4. Setup ..................................................... |tern-setup|
-   5. Commands ............................................... |tern-commands|
-   6. The language server ......................................... |tern-lsp|
-   7. Virtual text ............................................. |tern-render|
-   8. Preview ................................................. |tern-preview|
-   9. Highlighting .......................................... |tern-highlight|
-  10. Formatting ............................................... |tern-format|
-  11. Health ................................................... |tern-health|
-  12. Without Node ....................................... |tern-without-node|
-  13. The API for users ........................................... |tern-api|
-  14. Troubleshooting ................................. |tern-troubleshooting|
-  15. License ................................................. |tern-license|
+   1. Introduction .............................................. |luccet-intro|
+   2. Requirements ....................................... |luccet-requirements|
+   3. Installation ....................................... |luccet-installation|
+   4. Setup ..................................................... |luccet-setup|
+   5. Commands ............................................... |luccet-commands|
+   6. The language server ......................................... |luccet-lsp|
+   7. Virtual text ............................................. |luccet-render|
+   8. Preview ................................................. |luccet-preview|
+   9. Highlighting .......................................... |luccet-highlight|
+  10. Formatting ............................................... |luccet-format|
+  11. Health ................................................... |luccet-health|
+  12. Without Node ....................................... |luccet-without-node|
+  13. The API for users ........................................... |luccet-api|
+  14. Troubleshooting ................................. |luccet-troubleshooting|
+  15. License ................................................. |luccet-license|
 
 ==============================================================================
-1. INTRODUCTION                                *tern* *tern.nvim* *tern-intro*
+1. INTRODUCTION                                *luccet* *luccet.nvim* *luccet-intro*
 
-Tern (https://github.com/OzkrAC/tern) writes documents as HTML files. A
-note's first line loads `tern.js`, and everything after that line is the
-note, written in Tern's markdown-like syntax. Opened in a browser, tern.js
+Luccet (https://github.com/Luccet/luccet) writes documents as HTML files. A
+note's first line loads `luccet.js`, and everything after that line is the
+note, written in Luccet's markdown-like syntax. Opened in a browser, luccet.js
 renders the note in place.
 
-tern.nvim is the Neovim side of Tern. It:
-• gives the filetype `tern` to every .html file that loads tern.js
-  (|tern-detection|);
-• runs `tern lsp`, Tern's language server, for each note. The server gives
+luccet.nvim is the Neovim side of Luccet. It:
+• gives the filetype `luccet` to every .html file that loads luccet.js
+  (|luccet-detection|);
+• runs `luccet lsp`, Luccet's language server, for each note. The server gives
   diagnostics, completion, go to definition, references, rename, hover,
   symbols, folding and quick fixes, in the note and across notes
-  (|tern-lsp|);
+  (|luccet-lsp|);
 • draws virtual text from the server's outline: block labels, what each
   reference reads as, equation numbers, and simple TeX as Unicode
-  (|tern-render|);
+  (|luccet-render|);
 • serves a live preview that refreshes the browser as you type
-  (|tern-preview|);
-• writes a note's first line, and runs `tern check` and `tern build`
-  (|tern-commands|);
-• highlights the syntax (|tern-highlight|);
+  (|luccet-preview|);
+• writes a note's first line, and runs `luccet check` and `luccet build`
+  (|luccet-commands|);
+• highlights the syntax (|luccet-highlight|);
 • lines up a list item's lines with its text, with = and gq
-  (|tern-format|).
+  (|luccet-format|).
 
-The plugin is a client of `tern lsp`, with no grammar of its own. Positions,
+The plugin is a client of `luccet lsp`, with no grammar of its own. Positions,
 structure, diagnostics and folds come from the server, which runs the engine
 the browser runs, so the editor and the page cannot disagree. Highlighting is
-the one exception: syntax/tern.vim is lexical, so it is fast and works
+the one exception: syntax/luccet.vim is lexical, so it is fast and works
 without Node.
 
-Detection                                                     *tern-detection*
+Detection                                                     *luccet-detection*
 
 A file is a note when its name ends in .html or .htm and one of its first
-1000 lines holds a plain <script> that loads a file named tern.js. The rule
+1000 lines holds a plain <script> that loads a file named luccet.js. The rule
 for that line:
 • the tag has no `async`, `defer` or `data-built` attribute and no
-  `type=module`, because tern.js must run while the page is parsed;
-• its src is tern.js, optionally after a path and before a ?query or #hash,
+  `type=module`, because luccet.js must run while the page is parsed;
+• its src is luccet.js, optionally after a path and before a ?query or #hash,
   quoted or not;
 • a tag inside a complete <!-- … --> comment does not count, and after an
   unclosed comment nothing on the line counts.
-This is the engine's rule (`DETECT` in Tern's cli/note.js), written in Lua in
-lua/tern/detect.lua, so detection needs no Node. Other HTML files keep the
+This is the engine's rule (`DETECT` in Luccet's cli/note.js), written in Lua in
+lua/luccet/detect.lua, so detection needs no Node. Other HTML files keep the
 filetype `html`.
 
-The canonical first line, which |:TernInit| and `tern new` write, is: >html
-    <!doctype html><meta charset="utf-8"><script src="tern.js"></script>
+The canonical first line, which |:LuccetInit| and `luccet new` write, is: >html
+    <!doctype html><meta charset="utf-8"><script src="luccet.js"></script>
 <
 In a note, the ftplugin sets 'commentstring' to `<!-- %s -->`. It also
 removes `t` from 'formatoptions', because hard wrapping breaks constructs
 that must stay on one line: openers, leaves and table rows.
 
 ==============================================================================
-2. REQUIREMENTS                                            *tern-requirements*
+2. REQUIREMENTS                                            *luccet-requirements*
 
 • Neovim 0.11 or later. On an older Neovim the plugin warns and defines no
   commands.
 • Node 22 or later, as `node` on PATH.
-• The Tern CLI: tern-cli.js, from a checkout of
-  https://github.com/OzkrAC/tern. See |tern-cli|.
+• The Luccet CLI: luccet-cli.js, from a checkout of
+  https://github.com/Luccet/luccet. See |luccet-cli|.
 
-The language server, the virtual text, |:TernCheck| and |:TernBuild| need
-Node and the CLI. Everything else works without them: |tern-without-node|.
+The language server, the virtual text, |:LuccetCheck| and |:LuccetBuild| need
+Node and the CLI. Everything else works without them: |luccet-without-node|.
 The plugin needs no other Lua plugin.
 
 ==============================================================================
-3. INSTALLATION                                            *tern-installation*
+3. INSTALLATION                                            *luccet-installation*
 
 lazy.nvim: >lua
     {
-      'OzkrAC/tern.nvim',
-      opts = {}, -- passed to require('tern').setup()
+      'Luccet/luccet.nvim',
+      opts = {}, -- passed to require('luccet').setup()
     }
 <
 packer.nvim: >lua
     use({
-      'OzkrAC/tern.nvim',
+      'Luccet/luccet.nvim',
       config = function()
-        require('tern').setup({})
+        require('luccet').setup({})
       end,
     })
 <
 Native packages (|packages|): >sh
-    git clone https://github.com/OzkrAC/tern.nvim \
-      ~/.local/share/nvim/site/pack/tern/start/tern.nvim
+    git clone https://github.com/Luccet/luccet.nvim \
+      ~/.local/share/nvim/site/pack/luccet/start/luccet.nvim
 <
 Then run `:helptags ALL` to index this help file.
 
-You do not need to lazy-load the plugin. plugin/tern.lua only defines the
+You do not need to lazy-load the plugin. plugin/luccet.lua only defines the
 commands, and the modules load when the first note opens or a command runs.
-|tern.setup()| is optional: without it the defaults apply.
+|luccet.setup()| is optional: without it the defaults apply.
 
-The Tern CLI                                                        *tern-cli*
+The Luccet CLI                                                        *luccet-cli*
 
-Get Tern and make its CLI findable: >sh
-    git clone https://github.com/OzkrAC/tern
-    cd tern && npm link     # puts `tern` on PATH
+Get Luccet and make its CLI findable: >sh
+    git clone https://github.com/Luccet/luccet
+    cd luccet && npm link     # puts `luccet` on PATH
 <
-Instead of `npm link`, you can set $TERN_CLI to /path/to/tern/tern-cli.js,
-or set |tern-option-cmd|.
+Instead of `npm link`, you can set $LUCCET_CLI to /path/to/luccet/luccet-cli.js,
+or set |luccet-option-cmd|.
 
-How the plugin finds the CLI                                 *tern-cli-lookup*
+How the plugin finds the CLI                                 *luccet-cli-lookup*
 
 For each note, the plugin uses the first of these sources that applies:
-1. `cmd` in |tern.setup()| (|tern-option-cmd|), used as given.
-2. $TERN_CLI, the path of tern-cli.js. When it is set but is not a file, the
+1. `cmd` in |luccet.setup()| (|luccet-option-cmd|), used as given.
+2. $LUCCET_CLI, the path of luccet-cli.js. When it is set but is not a file, the
    search stops there with an error.
-3. tern-cli.js in the note's directory or any directory above it, as when
-   the note is inside a Tern checkout.
-4. tern-cli.js next to the tern.js the note loads, with symbolic links
-   followed. So a note whose tern.js is a link to a checkout's tern.js finds
-   that checkout. A root-relative src (/tern.js) is tried under every
+3. luccet-cli.js in the note's directory or any directory above it, as when
+   the note is inside a Luccet checkout.
+4. luccet-cli.js next to the luccet.js the note loads, with symbolic links
+   followed. So a note whose luccet.js is a link to a checkout's luccet.js finds
+   that checkout. A root-relative src (/luccet.js) is tried under every
    directory above the note; a URL src (https://…, //…) is skipped.
-5. `tern` on PATH, when it is tern-cli.js itself (`npm link`, `ln -s`) or a
-   script that runs it. Any other `tern` is skipped, because an unrelated
+5. `luccet` on PATH, when it is luccet-cli.js itself (`npm link`, `ln -s`) or a
+   script that runs it. Any other `luccet` is skipped, because an unrelated
    npm package has that name.
 
-Sources 2 to 5 run tern-cli.js with the `node` on PATH, which must be Node 22
+Sources 2 to 5 run luccet-cli.js with the `node` on PATH, which must be Node 22
 or later. Each node binary is checked once a session. For a buffer without a
 file, the search starts in the current directory.
 
-The language server is the CLI with `lsp`. |:TernCheck| and |:TernBuild| run
+The language server is the CLI with `lsp`. |:LuccetCheck| and |:LuccetBuild| run
 the same CLI with `check` and `build`. Run from a buffer that is not a note,
-such as the quickfix window a search opened, |:TernCheck| and |:TernSearch|
-find it for the note you were in last. `:checkhealth tern` shows which source
-found the CLI for the current buffer (|tern-health|).
+such as the quickfix window a search opened, |:LuccetCheck| and |:LuccetSearch|
+find it for the note you were in last. `:checkhealth luccet` shows which source
+found the CLI for the current buffer (|luccet-health|).
 
 ==============================================================================
-4. SETUP                                           *tern-setup* *tern.setup()*
+4. SETUP                                           *luccet-setup* *luccet.setup()*
 
-require('tern').setup({opts})
+require('luccet').setup({opts})
 
 {opts} is merged over the defaults below. Each call starts again from the
 defaults: options from an earlier call are not kept. The modules read the
@@ -163,7 +163,7 @@ options when they use them, so a change applies to the next note that opens,
 the next draw, or the next command.
 
 The defaults: >lua
-    require('tern').setup({
+    require('luccet').setup({
       cmd = nil,
       lsp = true,
       watch = false,
@@ -184,25 +184,25 @@ The defaults: >lua
       },
     })
 <
-cmd                                                          *tern-option-cmd*
+cmd                                                          *luccet-option-cmd*
     List or function. Default: nil.
     The language server command, such as: >lua
-        cmd = { 'node', '/path/to/tern/tern-cli.js', 'lsp' }
+        cmd = { 'node', '/path/to/luccet/luccet-cli.js', 'lsp' }
 <
-    With nil, the plugin finds the command for each note (|tern-cli-lookup|).
+    With nil, the plugin finds the command for each note (|luccet-cli-lookup|).
     A list's first item must be an executable; when it is `node`, its version
-    is checked. The items before `lsp` are the CLI that |:TernCheck| and
-    |:TernBuild| run. Without an `lsp` item, those commands find the CLI
+    is checked. The items before `lsp` are the CLI that |:LuccetCheck| and
+    |:LuccetBuild| run. Without an `lsp` item, those commands find the CLI
     from the other sources. A function is passed to |vim.lsp.start()| as is
     (see `cmd` in |vim.lsp.ClientConfig|).
 
-lsp                                                          *tern-option-lsp*
+lsp                                                          *luccet-option-lsp*
     Boolean. Default: true.
-    Starts `tern lsp` for each note. With false, no server starts, and notes
-    fold by headings (|tern-lexical-folds|) and get no virtual text.
-    |:TernCheck| and |:TernBuild| still work.
+    Starts `luccet lsp` for each note. With false, no server starts, and notes
+    fold by headings (|luccet-lexical-folds|) and get no virtual text.
+    |:LuccetCheck| and |:LuccetBuild| still work.
 
-watch                                                      *tern-option-watch*
+watch                                                      *luccet-option-watch*
     Boolean. Default: false.
     Lets the server watch the files under its root, through Neovim's file
     watcher, for changes made outside Neovim: an add-on edited in another
@@ -212,105 +212,105 @@ watch                                                      *tern-option-watch*
     polls the tree, so a very large root (one holding node_modules) costs
     with it on.
 
-fold                                                        *tern-option-fold*
+fold                                                        *luccet-option-fold*
     Boolean. Default: true.
     Sets the folds of each window that shows a note: from the server, or by
-    headings without one, and a fold for the head (|tern-folding|). With
+    headings without one, and a fold for the head (|luccet-folding|). With
     false, the plugin does not touch the fold options, and the head stays
-    in sight (|tern-render-head|).
+    in sight (|luccet-render-head|).
 
-render                                                    *tern-option-render*
-    Table. The virtual text drawn from the server's outline (|tern-render|).
+render                                                    *luccet-option-render*
+    Table. The virtual text drawn from the server's outline (|luccet-render|).
 
-render.enabled                                    *tern-option-render.enabled*
+render.enabled                                    *luccet-option-render.enabled*
     Boolean. Default: true.
     Draws the virtual text in each note as it opens. With false, nothing is
-    drawn until `:TernRender on` (|:TernRender|).
+    drawn until `:LuccetRender on` (|:LuccetRender|).
 
-render.labels                                      *tern-option-render.labels*
+render.labels                                      *luccet-option-render.labels*
     Boolean. Default: true.
     A numbered block's label, such as "Theorem 1", at the end of its opener
     line.
 
-render.refs                                          *tern-option-render.refs*
+render.refs                                          *luccet-option-render.refs*
     Boolean. Default: true.
     What each @reference reads as on the page, right after it.
 
-render.math                                          *tern-option-render.math*
+render.math                                          *luccet-option-render.math*
     Boolean. Default: true.
     Simple TeX as Unicode beside each formula, and the equation numbers of
     display math.
 
-render.conceal                                    *tern-option-render.conceal*
+render.conceal                                    *luccet-option-render.conceal*
     Boolean. Default: true.
     Draws math with a Unicode form in place of its source, a block's
     opener in place of its syntax, with its other attributes and its
-    closer hidden, and an inline element as its content (|tern-render|);
+    closer hidden, and an inline element as its content (|luccet-render|);
     keeps the head folded
-    (|tern-render-head|). The source shows again while the cursor is on
+    (|luccet-render-head|). The source shows again while the cursor is on
     it. The ftplugin sets 'conceallevel' to 2 in the note's window. With
     false, nothing is hidden: the Unicode form follows the source, labels
     go at the end of the opener line, the head's fold stays open, and
     'conceallevel' is left alone.
 
-preview                                                  *tern-option-preview*
-    Table. The |:TernPreview| server (|tern-preview|).
+preview                                                  *luccet-option-preview*
+    Table. The |:LuccetPreview| server (|luccet-preview|).
 
-preview.host                                        *tern-option-preview.host*
+preview.host                                        *luccet-option-preview.host*
     String. Default: '127.0.0.1'.
     The address the server listens on: an IP address, or a name that
     resolves to one. The preview URL uses it.
 
-preview.port                                        *tern-option-preview.port*
+preview.port                                        *luccet-option-preview.port*
     Number. Default: 0.
     The port. With 0, the server takes any free port.
 
-preview.open                                        *tern-option-preview.open*
+preview.open                                        *luccet-option-preview.open*
     Boolean. Default: true.
-    Opens the page in a browser on |:TernPreview|. With false, the URL is
+    Opens the page in a browser on |:LuccetPreview|. With false, the URL is
     only printed.
 
-preview.browser                                  *tern-option-preview.browser*
+preview.browser                                  *luccet-option-preview.browser*
     String or list. Default: nil.
     The command that opens the page, with the URL added as its last
     argument: 'firefox', or { 'firefox', '--new-window' }. It runs detached.
     With nil, the page opens with |vim.ui.open()|.
 
-preview.update                                    *tern-option-preview.update*
+preview.update                                    *luccet-option-preview.update*
     String. Default: 'change'.
     When the page of a note refreshes. With 'change', it follows the note's
     buffer as you type, written or not: a modified note is served from its
-    buffer (|tern-preview-unsaved|). With 'write', it refreshes when you
+    buffer (|luccet-preview-unsaved|). With 'write', it refreshes when you
     write, and the server serves the files on disk only.
 
 ==============================================================================
-5. COMMANDS                                                    *tern-commands*
+5. COMMANDS                                                    *luccet-commands*
 
-:TernInit [{src}]                                                  *:TernInit*
+:LuccetInit [{src}]                                                  *:LuccetInit*
     Makes the current buffer a note. It inserts the canonical first line at
     the top: >html
         <!doctype html><meta charset="utf-8"><script src="SRC"></script>
 <
-    It also sets the filetype to `tern`. One |undo| removes the line. In an
+    It also sets the filetype to `luccet`. One |undo| removes the line. In an
     empty buffer the cursor goes to line 2, where the note starts.
 
     SRC is chosen like this:
     • With {src}, a file is written relative to the note. A directory that
-      holds tern.js stands for that tern.js. Anything else, such as a URL,
+      holds luccet.js stands for that luccet.js. Anything else, such as a URL,
       is written as given. %, #, ~ and $VAR at its start are expanded.
-    • Without {src}, it is the nearest tern.js in the note's directory or
-      above, relative to the note. Without one, it is `tern.js`, and the
+    • Without {src}, it is the nearest luccet.js in the note's directory or
+      above, relative to the note. Without one, it is `luccet.js`, and the
       message warns that none was found.
-    The src must name a file called tern.js, or the line would not make a
+    The src must name a file called luccet.js, or the line would not make a
     note; otherwise nothing is written.
 
-    :TernInit refuses a buffer that has no file (write it first), a buffer
+    :LuccetInit refuses a buffer that has no file (write it first), a buffer
     that is already a note, and a buffer that is not 'modifiable'. It warns
     when the note's directory does not exist yet, and when the file name
     does not end in .html, because a browser would not render it.
 
-:TernCheck [{path} ...]                                           *:TernCheck*
-    Runs `tern check --json` on each {path}, a file or a folder, or on the
+:LuccetCheck [{path} ...]                                           *:LuccetCheck*
+    Runs `luccet check --json` on each {path}, a file or a folder, or on the
     current buffer's file. The diagnostics go to the |quickfix| list, which
     opens when there are any. Each item has the file, the line and column
     range, the type (E, W or I) and "CODE: message". The diagnostic's hint
@@ -319,17 +319,17 @@ preview.update                                    *tern-option-preview.update*
 
     The check runs in the background and reads the files on disk. When the
     buffer has unsaved changes, the message says so. The language server
-    checks the buffer itself as you type (|tern-diagnostics|); :TernCheck is
+    checks the buffer itself as you type (|luccet-diagnostics|); :LuccetCheck is
     for files and folders that are not open.
 
-    The quickfix list's title is "tern check" and the paths. When the
-    current list is a tern check list, a new run replaces it, even a clean
+    The quickfix list's title is "luccet check" and the paths. When the
+    current list is a luccet check list, a new run replaces it, even a clean
     one. Otherwise a run that finds problems adds a new list. A clean run
-    says "tern check: no problems". A usage error, such as a path that does
-    not exist, shows tern check's message.
+    says "luccet check: no problems". A usage error, such as a path that does
+    not exist, shows luccet check's message.
 
-:TernSearch {word} ... [{path} ...]                              *:TernSearch*
-    Runs `tern search --json` for the words, over each {path}, a file or a
+:LuccetSearch {word} ... [{path} ...]                              *:LuccetSearch*
+    Runs `luccet search --json` for the words, over each {path}, a file or a
     folder, or over the working directory when none is given: an argument
     that names an existing file or folder is a path, the others are the
     query. The hits go to the |quickfix| list, which opens when there are
@@ -338,43 +338,43 @@ preview.update                                    *tern-option-preview.update*
     page title and score in `user_data`. A word stands for the words it
     begins, so `pythag` finds Pythagoras. The notes are read from disk.
 
-    An argument that starts with `--` goes to `tern search` as it is:
-    `:TernSearch --index=search.json pythag` searches the index that
-    `tern index` wrote instead of reading the notes, the same hits from
+    An argument that starts with `--` goes to `luccet search` as it is:
+    `:LuccetSearch --index=search.json pythag` searches the index that
+    `luccet index` wrote instead of reading the notes, the same hits from
     one file; the value of `--index=` is expanded as a path (%, ~, $VAR).
 
-    The list's title is "tern search" and the words. When the current list
-    is a tern search list, a new search replaces it, even one that finds
+    The list's title is "luccet search" and the words. When the current list
+    is a luccet search list, a new search replaces it, even one that finds
     nothing; otherwise a search that finds something adds a new list, and
     one that finds nothing only says so.
 
-:TernBuild [{out}]                                                *:TernBuild*
-    Runs `tern build FILE -o OUT` on the current buffer's file, in the
+:LuccetBuild [{out}]                                                *:LuccetBuild*
+    Runs `luccet build FILE -o OUT` on the current buffer's file, in the
     background. FILE is built into a static page: the HTML the browser
     would mount, already in the file.
 
     {out} defaults to NAME.built.html beside the note, so its relative URLs
-    (tern.js, add-ons, images) still resolve. An {out} that ends in / is a
+    (luccet.js, add-ons, images) still resolve. An {out} that ends in / is a
     folder: the page goes into it under the note's file name. %, #, ~ and
     $VAR at the start of {out} are expanded.
 
     The build reads the file on disk; with unsaved changes the message says
     so. The message names the file written, says how many diagnostics the
-    note has (|:TernCheck| lists them), and repeats tern build's warnings.
+    note has (|:LuccetCheck| lists them), and repeats luccet build's warnings.
 
-:TernMove [{from}] {to}                                            *:TernMove*
+:LuccetMove [{from}] {to}                                            *:LuccetMove*
     Moves the current buffer's file, or {from}, to {to}, and fixes the
     links: those to it from other notes, and its own, which now start from
-    its new folder. These are the edits `tern mv` makes. The language server
+    its new folder. These are the edits `luccet mv` makes. The language server
     works them out (workspace/willRenameFiles), so unsaved changes in open
     notes count. {from} may be any file, or a folder. A {to} that is a
     folder, or ends in /, receives {from} under its own name. Missing
     folders on the way are created. %, #, ~ and $VAR at the start of a path
     are expanded. >vim
-        :TernMove notes/linear/
-        :TernMove notes/img notes/pictures
+        :LuccetMove notes/linear/
+        :LuccetMove notes/img notes/pictures
 <
-    The server reads the notes under its root (|tern-lsp|) and the open
+    The server reads the notes under its root (|luccet-lsp|) and the open
     buffers. The buffer of a moved file is renamed and written at its new
     path, unsaved changes included, as |vim.lsp.util.rename()| does. Other
     open buffers get their edits and are written; one with unsaved changes
@@ -386,40 +386,40 @@ preview.update                                    *tern-option-preview.update*
     Nothing moves when {to} exists, when a folder would move into itself,
     or when no server runs for the file. A note with a <base href> keeps its
     links, and the server's message names it. Files that are not notes are
-    not edited; `tern mv --dry-run` lists those that name a moved file.
+    not edited; `luccet mv --dry-run` lists those that name a moved file.
 
-:TernPreview                                                    *:TernPreview*
+:LuccetPreview                                                    *:LuccetPreview*
     Serves the current buffer's file over HTTP, prints its URL and, with
-    |tern-option-preview.open|, opens it in a browser. The page refreshes
+    |luccet-option-preview.open|, opens it in a browser. The page refreshes
     as you change the note, and each time you write it
-    (|tern-option-preview.update|). The file must exist on disk. See
-    |tern-preview|.
+    (|luccet-option-preview.update|). The file must exist on disk. See
+    |luccet-preview|.
 
-:TernPreviewStop                                            *:TernPreviewStop*
+:LuccetPreviewStop                                            *:LuccetPreviewStop*
     Stops the preview server and closes every connection. The server also
     stops when Neovim exits.
 
-:TernRender [{state}]                                            *:TernRender*
-    Shows or hides the virtual text (|tern-render|) in the current buffer.
+:LuccetRender [{state}]                                            *:LuccetRender*
+    Shows or hides the virtual text (|luccet-render|) in the current buffer.
     {state} is `on`, `off` or `toggle`; without it, the command toggles.
-    `on` also works when |tern-option-render.enabled| is false.
+    `on` also works when |luccet-option-render.enabled| is false.
 
 ==============================================================================
-6. THE LANGUAGE SERVER                                              *tern-lsp*
+6. THE LANGUAGE SERVER                                              *luccet-lsp*
 
-For each note, the plugin starts `tern lsp` with |vim.lsp.start()|, or
+For each note, the plugin starts `luccet lsp` with |vim.lsp.start()|, or
 attaches the note to a server that is already running. The client is named
-`tern`. One server runs per root: the nearest directory above the note that
-holds tern-cli.js or tern.js, else the note's own directory. Notes below the
-same tern.js share a server.
+`luccet`. One server runs per root: the nearest directory above the note that
+holds luccet-cli.js or luccet.js, else the note's own directory. Notes below the
+same luccet.js share a server.
 
 The server analyses a note when it opens, and 150 ms after you stop typing.
-It runs the analysis that `tern check` runs, with the engine the browser
+It runs the analysis that `luccet check` runs, with the engine the browser
 runs. The features below use Neovim's own mappings and functions
 (|lsp-defaults|); the plugin adds no mappings.
 
-Diagnostics                                                 *tern-diagnostics*
-    Errors, warnings and infos as you type, with the source `tern` and a
+Diagnostics                                                 *luccet-diagnostics*
+    Errors, warnings and infos as you type, with the source `luccet` and a
     code such as `ref.dangling`. The message ends with the hint, on a line
     of its own, when there is one.
     • |]d-default| and |[d-default| go to the next and the previous
@@ -431,7 +431,7 @@ Diagnostics                                                 *tern-diagnostics*
     the end of the line, use `vim.diagnostic.config({ virtual_text = true })`
     (|vim.diagnostic.config()|).
 
-Completion                                                   *tern-completion*
+Completion                                                   *luccet-completion*
     Completion offers what may come next where you type:
     • after `:::`, container names, and a closer for each open container;
     • after `:::/`, only the closers of the containers open at that line;
@@ -454,30 +454,30 @@ Completion                                                   *tern-completion*
         vim.api.nvim_create_autocmd('LspAttach', {
           callback = function(ev)
             local client = vim.lsp.get_client_by_id(ev.data.client_id)
-            if client and client.name == 'tern' then
+            if client and client.name == 'luccet' then
               vim.lsp.completion.enable(true, client.id, ev.buf,
                 { autotrigger = true })
             end
           end,
         })
 <
-Go to definition                                             *tern-definition*
+Go to definition                                             *luccet-definition*
     From a reference `@id`, a fragment link `[text](#id)` or a footnote
     reference `[^x]`, it goes to the declaration: the `#id` of an attribute
     group, the footnote's `[^x]:`, or the heading whose slug is the id.
     From a named closer `:::/name`, it goes to the opener's name. From a
     link to another file, `maps.html#rn`, it goes to the id there, or to
-    the file's first line without a fragment (|tern-across-files|).
+    the file's first line without a fragment (|luccet-across-files|).
     Use |CTRL-]| ('tagfunc' is |vim.lsp.tagfunc()|) or
     |vim.lsp.buf.definition()|.
 
-References                                                   *tern-references*
+References                                                   *luccet-references*
     From a declaration or from any reference, it lists every `@id`, fragment
     link and footnote reference to the id, and every link `page.html#id` to
     it from the other notes. Nothing inside code or math is a reference.
     Use |grr| (|vim.lsp.buf.references()|).
 
-Rename                                                           *tern-rename*
+Rename                                                           *luccet-rename*
     Renames an id together with all its references, in its note and in the
     links `page.html#id` to it from the other notes, or an element's name
     together with its named closer, in one edit. Renaming a heading's slug
@@ -486,9 +486,9 @@ Rename                                                           *tern-rename*
     footnote labels, and it says why. Use |grn| (|vim.lsp.buf.rename()|).
     The other notes are edited in their buffers, loaded if need be, and not
     written: |:wall| writes them. To rename or move a file, with its links,
-    use |:TernMove|.
+    use |:LuccetMove|.
 
-Across files                                               *tern-across-files*
+Across files                                               *luccet-across-files*
     A link to another file with a fragment, `maps.html#rn`, is a reference
     to that id. Definition, references and rename follow it: the other
     notes under the server's root, and every open note, are read as link
@@ -496,7 +496,7 @@ Across files                                               *tern-across-files*
     file that is not a note goes to the element with that id, or the
     heading with that anchor in a Markdown file; rename is refused there.
 
-Code actions                                               *tern-code-actions*
+Code actions                                               *luccet-code-actions*
     |gra| (|vim.lsp.buf.code_action()|) on a diagnostic offers its quick
     fixes, when it has one: a near id for a reference to no id, or its
     escape `\@name`; the definition of a footnote without one; the closer
@@ -504,30 +504,30 @@ Code actions                                               *tern-code-actions*
     braces around an opener's attributes written without them; the disk's
     spelling for a link in another case.
 
-Workspace symbols                                     *tern-workspace-symbols*
+Workspace symbols                                     *luccet-workspace-symbols*
     |vim.lsp.buf.workspace_symbol()| searches the headings, and the blocks
     with an id or a title, of every note under the root and every open
     note, by name or id (`#rn`), into the quickfix list. The notes are
     parsed, their code not run.
 
-Hover                                                             *tern-hover*
+Hover                                                             *luccet-hover*
     |K| (|vim.lsp.buf.hover()|) on an id, a reference or a declaration shows
     what a reference to it reads as, such as "Theorem 1 — Rank–nullity",
     with its kind, its id and the line where it is declared. On an
     element's name, it shows the HTML element the name becomes, and why: a
     schema entry, an HTML element, or no entry (a <div>).
 
-Symbols                                                         *tern-symbols*
+Symbols                                                         *luccet-symbols*
     |gO| (|vim.lsp.buf.document_symbol()|) lists the headings, containers and
     leaves, nested, in the location list.
 
-Folding                                                         *tern-folding*
-    With |tern-option-fold|, each window that shows a note gets these
+Folding                                                         *luccet-folding*
+    With |luccet-option-fold|, each window that shows a note gets these
     window-local options:
         'foldmethod'    expr
-        'foldexpr'      v:lua.require'tern.lsp'.serverfold(v:lnum)
+        'foldexpr'      v:lua.require'luccet.lsp'.serverfold(v:lnum)
         'foldlevel'     99, so every fold starts open
-        'foldtext'      v:lua.require'tern.head'.foldtext()
+        'foldtext'      v:lua.require'luccet.head'.foldtext()
         'foldminlines'  0, so that a one-line head can be closed
         'fillchars'     with `fold: `, spaces after a closed fold's text
                         instead of dots, unless 'fillchars' sets `fold:`
@@ -535,21 +535,21 @@ Folding                                                         *tern-folding*
     folds containers, fences, display math, tables, lists, footnote
     definitions, raw HTML blocks, and the section of each heading. Use |zc|,
     |zo|, |za|, |zM| and |zR|.
-    The head, the lines up to the tern.js line, is a fold of its own, at
-    level 2 inside a level-1 fold of the same lines. |tern-render-head|
+    The head, the lines up to the luccet.js line, is a fold of its own, at
+    level 2 inside a level-1 fold of the same lines. |luccet-render-head|
     keeps the inner one closed. The outer one stays open, because a fold
     that appears takes the state of the fold before it, and the folds
     after the head must not start closed. On the head's fold, 'foldtext'
     shows what the head holds; on the others, Neovim's |foldtext()|.
 
-                                                          *tern-lexical-folds*
-    Without a server (|tern-option-lsp| is false, or the server cannot
+                                                          *luccet-lexical-folds*
+    Without a server (|luccet-option-lsp| is false, or the server cannot
     start), notes fold by headings: a heading of level N starts a fold of
     level N, and headings inside fenced code are ignored. The head is
     folded as above. 'foldexpr' is then
-    `v:lua.require'tern.lsp'.foldexpr(v:lnum)`.
+    `v:lua.require'luccet.lsp'.foldexpr(v:lnum)`.
 
-When the server does not run                               *tern-lsp-fallback*
+When the server does not run                               *luccet-lsp-fallback*
     When no server can start (no node, no CLI, or a command that exits at
     once), a notice says why, once a session. The note opens without
     errors and folds by headings. A server that crashes is restarted once.
@@ -557,17 +557,17 @@ When the server does not run                               *tern-lsp-fallback*
     a notice says so, and its notes fold by headings. |:edit| a note to try
     again.
 
-The outline                                       *tern-outline* *TernOutline*
+The outline                                       *luccet-outline* *LuccetOutline*
 
-After each analysis, the server sends a `tern/outline` notification, a
+After each analysis, the server sends a `luccet/outline` notification, a
 digest of the note's structure. The plugin keeps the last one for each
-buffer, then fires the |User| event `TernOutline` with
-`data = { buf = buf }`. |tern.lsp.outline()| returns it. The virtual text
+buffer, then fires the |User| event `LuccetOutline` with
+`data = { buf = buf }`. |luccet.lsp.outline()| returns it. The virtual text
 is drawn from it, and you can use it too: >lua
     vim.api.nvim_create_autocmd('User', {
-      pattern = 'TernOutline',
+      pattern = 'LuccetOutline',
       callback = function(ev)
-        local o = require('tern.lsp').outline(ev.data.buf)
+        local o = require('luccet.lsp').outline(ev.data.buf)
         print(#o.headings .. ' headings, ' .. #o.refs .. ' references')
       end,
     })
@@ -588,37 +588,37 @@ is left out. The fields:
     raw           { line, endLine, kind }
     inline        { line, col, end, name }
 
-Tern's documentation describes each field: docs/tools.html#outline in the
-Tern repository. While you type, the outline lags behind the buffer until
+Luccet's documentation describes each field: docs/tools.html#outline in the
+Luccet repository. While you type, the outline lags behind the buffer until
 the next analysis. A buffer's outline is forgotten when the buffer is
 unloaded.
 
 ==============================================================================
-7. VIRTUAL TEXT                                                  *tern-render*
+7. VIRTUAL TEXT                                                  *luccet-render*
 
-The plugin draws text from the outline (|tern-outline|) beside the source,
+The plugin draws text from the outline (|luccet-outline|) beside the source,
 so that the source shows what the page will show. With
-|tern-option-render.conceal|, math and the syntax of blocks and inline
+|luccet-option-render.conceal|, math and the syntax of blocks and inline
 elements are drawn in place of their source, which shows again while the
 cursor is on it. Each
 kind has its own flag:
 
-Labels (|tern-option-render.labels|)
+Labels (|luccet-option-render.labels|)
     At the end of a numbered block's opener line, the label that the
     vocabulary gives the block, with its number: `Theorem 1`. When the
     block's title is not visible on that line, ` — Title` follows,
-    shortened to 60 characters. With |tern-option-render.conceal|, the
+    shortened to 60 characters. With |luccet-option-render.conceal|, the
     label goes in place of the opener instead (see Blocks below), and at
     the end of the line while the cursor is on it. Highlight:
-    |hl-TernVirtLabel|.
+    |hl-LuccetVirtLabel|.
 
-References (|tern-option-render.refs|)
+References (|luccet-option-render.refs|)
     Right after each `@id` that resolves, what it reads as on the page:
     `Theorem 1`, a heading's text, `(1)`, shortened to 40 characters. A
     reference that does not resolve gets none: its diagnostic says why.
-    Highlight: |hl-TernVirtRef|.
+    Highlight: |hl-LuccetVirtRef|.
 
-Math (|tern-option-render.math|)
+Math (|luccet-option-render.math|)
     For inline math `$…$`, the Unicode form in place of the source, so
     that `$\mathbb{R}^n$` reads `ℝⁿ`. On the cursor line the source shows,
     and the Unicode form follows the closing `$`.
@@ -639,17 +639,17 @@ Math (|tern-option-render.math|)
     number at the end of the closing line.
     Display math is drawn in place when its TeX is one line, or an
     environment written one row a line, such as align, cases or a matrix
-    (|tern-tex|), between a `$$` line
+    (|luccet-tex|), between a `$$` line
     and a closing `$$` line. Any other display math keeps its source and
     its `$$`, and TeX on one line gets its Unicode form at the end of the
     closing line.
     The source stays hidden under the cursor too when 'concealcursor' has
     the mode, and shows everywhere with 'conceallevel' 0 or
-    |tern-option-render.conceal| false. Inline math on two lines is never
-    hidden. Highlights: |hl-TernVirtMath| for the formula,
-    |hl-TernVirtLabel| for the number.
+    |luccet-option-render.conceal| false. Inline math on two lines is never
+    hidden. Highlights: |hl-LuccetVirtMath| for the formula,
+    |hl-LuccetVirtLabel| for the number.
 
-Blocks (|tern-option-render.conceal|)
+Blocks (|luccet-option-render.conceal|)
     A block's opener in place of its syntax: the label (or, without one,
     the block's name), the title as written, and the id of its
     attributes. Its other attributes and its closer are hidden, and an
@@ -670,12 +670,12 @@ Blocks (|tern-option-render.conceal|)
         :::                                         ┘
     `+++` cells and attribute lines before anything but a block keep their
     source, as the outline does not hold them. On the cursor line the
-    source shows, with the label at its end. Highlights: |hl-TernVirtLabel|
-    for the label, |hl-TernVirtName| for the name, |hl-TernVirtVerbatim|
-    for a verbatim block's name, |hl-TernVerbatim| for its tint,
-    |hl-TernVirtId| for the id.
+    source shows, with the label at its end. Highlights: |hl-LuccetVirtLabel|
+    for the label, |hl-LuccetVirtName| for the name, |hl-LuccetVirtVerbatim|
+    for a verbatim block's name, |hl-LuccetVerbatim| for its tint,
+    |hl-LuccetVirtId| for the id.
 
-Inline elements (|tern-option-render.conceal|)
+Inline elements (|luccet-option-render.conceal|)
     An inline element as its content: `:name[` and `]` hidden, and its
     attributes as their id. The content is highlighted, kbd, code and samp
     as code. sub and sup read as Unicode scripts when every character has
@@ -687,36 +687,36 @@ Inline elements (|tern-option-render.conceal|)
     An element over several lines keeps its source. A label that the
     vocabulary gives an inline element is not drawn: the outline does not
     hold it. On the cursor line the source shows. Highlights:
-    |hl-TernInline| and |hl-TernInlineCode| for the content,
-    |hl-TernVirtName| for the name, |hl-TernVirtId| for the id.
+    |hl-LuccetInline| and |hl-LuccetInlineCode| for the content,
+    |hl-LuccetVirtName| for the name, |hl-LuccetVirtId| for the id.
 
-The head (|tern-option-render.conceal|)                     *tern-render-head*
-    The head, from the doctype to the tern.js line, with any window.TERN
+The head (|luccet-option-render.conceal|)                     *luccet-render-head*
+    The head, from the doctype to the luccet.js line, with any window.LUCCET
     script, <title> or <style>, is folded into one line that says what it
-    holds: its title, `schema` for window.TERN, other scripts, `style`,
-    and the add-ons of the tern.js line's `data-use`:
+    holds: its title, `schema` for window.LUCCET, other scripts, `style`,
+    and the add-ons of the luccet.js line's `data-use`:
         <!doctype html><meta charset="utf-8">
         <script>                              ⟨head⟩ schema · style
-          window.TERN = { schema: … };
+          window.LUCCET = { schema: … };
         </script>
         <style>…</style>
-        <script src="tern.js"></script>
+        <script src="luccet.js"></script>
     It is folded when the note is first drawn in a window, opens when the
     cursor moves into it (from the line below, onto its last line) or
     Insert mode starts there, and folds again when the cursor leaves. This
-    needs the plugin's folds (|tern-folding|); without them, a one-line
+    needs the plugin's folds (|luccet-folding|); without them, a one-line
     head is drawn in place like a block's opener, and a longer one stays
-    as it is. |:TernRender| off opens it. Highlights: |hl-TernVirtVerbatim|
-    for ⟨head⟩, |hl-TernVirtName| for the rest.
+    as it is. |:LuccetRender| off opens it. Highlights: |hl-LuccetVirtVerbatim|
+    for ⟨head⟩, |hl-LuccetVirtName| for the rest.
 
-HTML code blocks (|tern-option-render.conceal|)
+HTML code blocks (|luccet-option-render.conceal|)
     A <style> or <script> block in the note is drawn like a block with a
     verbatim body: tinted, its name in place of a start tag alone on its
     line, and an end tag alone on its line hidden. Its code stays as
     written.
 
-TeX as Unicode                                                      *tern-tex*
-    lua/tern/tex.lua reads a small subset of KaTeX: Greek letters and
+TeX as Unicode                                                      *luccet-tex*
+    lua/luccet/tex.lua reads a small subset of KaTeX: Greek letters and
     symbols, function names, the superscripts and subscripts that Unicode
     has (x^2, x_i, x^{-1}), \mathbb and the other alphabets, \frac and
     \sqrt written on one line, accents on one letter, \text, and
@@ -758,7 +758,7 @@ TeX as Unicode                                                      *tern-tex*
     A brace over an even number of rows starts on the `\begin` line, so
     that its middle is on a row.
     The TeX is read after the note's macros, which every formula shares,
-    as on the page: the string values of `window.TERN.katex.macros` in the
+    as on the page: the string values of `window.LUCCET.katex.macros` in the
     head, then the definitions of each `:::macros` block, in the note's
     order, wherever the formula is. `\def`, `\gdef`, `\edef`, `\xdef`,
     `\let`, and `\newcommand`, `\renewcommand` and `\providecommand` with
@@ -784,58 +784,58 @@ When it is drawn
     longer holds what the outline says is left out.
 
 The virtual text needs the language server. Turn it off in one buffer with
-`:TernRender off` (|:TernRender|), for every note with
-|tern-option-render.enabled|, or one kind at a time with its flag.
+`:LuccetRender off` (|:LuccetRender|), for every note with
+|luccet-option-render.enabled|, or one kind at a time with its flag.
 
-Highlights                                            *tern-render-highlights*
+Highlights                                            *luccet-render-highlights*
 
-TernVirtLabel                                               *hl-TernVirtLabel*
+LuccetVirtLabel                                               *hl-LuccetVirtLabel*
     Block labels and equation numbers. Default: links to Special.
-TernVirtRef                                                   *hl-TernVirtRef*
+LuccetVirtRef                                                   *hl-LuccetVirtRef*
     What a reference reads as. Default: links to Comment.
-TernVirtMath                                                 *hl-TernVirtMath*
+LuccetVirtMath                                                 *hl-LuccetVirtMath*
     Math as Unicode. Default: links to Comment.
-TernVirtName                                                 *hl-TernVirtName*
+LuccetVirtName                                                 *hl-LuccetVirtName*
     The name of a block without a label, in place of its opener, and of an
     inline element without content. Default: links to Comment.
-TernVirtId                                                     *hl-TernVirtId*
+LuccetVirtId                                                     *hl-LuccetVirtId*
     An id in place of the attributes that hold it. Default: links to
     Identifier.
-TernVirtVerbatim                                         *hl-TernVirtVerbatim*
+LuccetVirtVerbatim                                         *hl-LuccetVirtVerbatim*
     The name of a block with a verbatim body, in place of its opener.
     Default: links to PreProc.
-TernVerbatim                                                 *hl-TernVerbatim*
+LuccetVerbatim                                                 *hl-LuccetVerbatim*
     The background of a block with a verbatim body, over its whole lines.
     Default: links to ColorColumn.
-TernInline                                                     *hl-TernInline*
+LuccetInline                                                     *hl-LuccetInline*
     The content of an inline element, and what is drawn for it: scripts,
     quotes. Default: links to Special.
-TernInlineCode                                             *hl-TernInlineCode*
+LuccetInlineCode                                             *hl-LuccetInlineCode*
     The content of a kbd, code or samp element. Default: links to String.
 
 They are defined as defaults, so a colorscheme or your own setting wins, and
 they come back after |:colorscheme|. For example: >lua
-    vim.api.nvim_set_hl(0, 'TernVirtRef', { fg = '#7f8c98', italic = true })
+    vim.api.nvim_set_hl(0, 'LuccetVirtRef', { fg = '#7f8c98', italic = true })
 <
 ==============================================================================
-8. PREVIEW                                                      *tern-preview*
+8. PREVIEW                                                      *luccet-preview*
 
-|:TernPreview| serves the note's project over HTTP from inside Neovim, with
+|:LuccetPreview| serves the note's project over HTTP from inside Neovim, with
 Neovim's own event loop. It needs no Node and no other program. It refreshes
 the browser as you change a note, before you write it, and each time you
 write a file.
 
-How it works                                                *tern-preview-how*
+How it works                                                *luccet-preview-how*
 
 Root and URL. The server's root is the note's project: the nearest directory
-above the file that holds tern.js or .git, else the file's own directory. A
-file's URL is its path under the root, so the note's relative URLs (tern.js,
+above the file that holds luccet.js or .git, else the file's own directory. A
+file's URL is its path under the root, so the note's relative URLs (luccet.js,
 add-ons, images, other notes) resolve as they do on disk: >
-    tern: preview at http://127.0.0.1:41723/notes/maps.html
+    luccet: preview at http://127.0.0.1:41723/notes/maps.html
 <
-One server per Neovim. |:TernPreview| on another file under the same root
+One server per Neovim. |:LuccetPreview| on another file under the same root
 reuses the server and gives that file's URL. On a file outside the root, the
-server moves to the new root. With |tern-option-preview.port| 0 it keeps its
+server moves to the new root. With |luccet-option-preview.port| 0 it keeps its
 port when it can, so the old root's pages reload into "404 Not Found"
 instead of retrying forever.
 
@@ -846,8 +846,8 @@ content type comes from the file's extension, and every response has
 "Cache-Control: no-store".
 
 Notes. A note (an .html or .htm file that is a note, up to 16 MiB) is served
-with two additions on its tern.js line:
-• `data-diagnostics` on the tern.js tag, so that tern.js shows its
+with two additions on its luccet.js line:
+• `data-diagnostics` on the luccet.js tag, so that luccet.js shows its
   diagnostics panel;
 • `<script src="/__tern/live.js" …>` just before that tag: the live reload
   script. It gets the tag's nonce, when the tag has one.
@@ -860,10 +860,10 @@ Live reload. When you write a file under the root in this Neovim
 on /__tern/events. Writes within 30 ms of each other, as from |:wall|, make
 one event. Each page then acts on it:
 • The page of the note you wrote refreshes in place and keeps its scroll
-  position. It fetches the file and renders the new note with tern.js,
+  position. It fetches the file and renders the new note with luccet.js,
   without reloading the page.
 • That page reloads instead, still keeping its scroll position, when the
-  lines up to the tern.js line changed, or when the tern.js tag is not
+  lines up to the luccet.js line changed, or when the luccet.js tag is not
   closed on its own line (`</script>` on the same line).
 • A write of a file that is not a note (CSS, an add-on, an image) reloads
   the page.
@@ -871,8 +871,8 @@ one event. Each page then acts on it:
 A page whose connection drops reconnects, waiting longer each time, up to
 8 seconds, and reloads once the server is back.
 
-                                                        *tern-preview-unsaved*
-Unsaved notes. With |tern-option-preview.update| 'change', a note whose
+                                                        *luccet-preview-unsaved*
+Unsaved notes. With |luccet-option-preview.update| 'change', a note whose
 buffer is modified is served from the buffer instead of its file: the
 page, and the raw note it fetches to refresh. The text is what |:write|
 would put on disk, with the buffer's 'fileformat', 'eol' and 'bomb', taken
@@ -880,14 +880,14 @@ would put on disk, with the buffer's 'fileformat', 'eol' and 'bomb', taken
 then get the same event as for a write, and refresh in place the same way.
 Once the buffer is written, is back to its file (|:undo| to the written
 text, |:edit!|) or is unloaded, the file is served again. A note that was
-modified before |:TernPreview| is served from its buffer from the first
+modified before |:LuccetPreview| is served from its buffer from the first
 request. Only notes are served this way: CSS, add-ons and images refresh
 when you write them. The file on disk is never changed.
 
-Security                                               *tern-preview-security*
+Security                                               *luccet-preview-security*
 
 The server is meant for your own browser on this machine:
-• It listens on |tern-option-preview.host|, 127.0.0.1 by default, so other
+• It listens on |luccet-option-preview.host|, 127.0.0.1 by default, so other
   machines cannot connect.
 • It answers GET and HEAD only.
 • The Host header must be HOST:PORT, localhost:PORT or 127.0.0.1:PORT. This
@@ -906,16 +906,16 @@ The server is meant for your own browser on this machine:
 • The request line and headers are capped at 8 KiB and 5 seconds, and open
   connections at 64.
 
-Limits                                                   *tern-preview-limits*
+Limits                                                   *luccet-preview-limits*
 
 • Unsaved changes show for notes only, and with
-  |tern-option-preview.update| 'write' not at all: write the buffer.
+  |luccet-option-preview.update| 'write' not at all: write the buffer.
 • Each refresh renders the whole note again in the browser, KaTeX
   included, so a large note's page lags behind fast typing. Changes made
   while it renders are taken in one more render.
 • Only writes in this Neovim refresh the page. When another program changes
   a file, such as a build step or git, reload the page yourself.
-• There is no authentication and no TLS. With |tern-option-preview.host|
+• There is no authentication and no TLS. With |luccet-option-preview.host|
   set to an address that other machines reach, anyone who reaches it can
   read every file under the root but the hidden ones. The Host check then
   accepts only that address, localhost and 127.0.0.1.
@@ -927,14 +927,14 @@ Limits                                                   *tern-preview-limits*
   previewed.
 
 ==============================================================================
-9. HIGHLIGHTING                                 *tern-highlight* *tern-syntax*
+9. HIGHLIGHTING                                 *luccet-highlight* *luccet-syntax*
 
-syntax/tern.vim highlights notes without the language server. It is a
+syntax/luccet.vim highlights notes without the language server. It is a
 lexical approximation: each construct is recognised from its own text, so it
 is fast and never breaks on a long note. The exact structure (the depth of
 raw HTML, the pairing of emphasis, the lines a list item owns) comes from
 the language server. Line constructs are also recognised after `>` quote
-markers. The head, every line up to and including the tern.js line, is
+markers. The head, every line up to and including the luccet.js line, is
 highlighted as HTML.
 
 Up to 20,000 lines, the syntax is parsed from the start of the file, which is
@@ -942,87 +942,87 @@ exact; the first full parse costs about 50 ms per 1,000 lines. In a longer
 note, parsing starts 500 lines above the window, so a fence or raw block
 longer than that may be misread until it scrolls into view.
 
-Groups                                                 *tern-highlight-groups*
+Groups                                                 *luccet-highlight-groups*
 
 Each group is linked or styled as a default (`:hi def`), so a colorscheme or
 your own |:highlight| overrides it: >lua
-    vim.api.nvim_set_hl(0, 'ternRef', { link = 'Constant' })
+    vim.api.nvim_set_hl(0, 'luccetRef', { link = 'Constant' })
 <
 Group                 Default             Highlights ~
-ternHeading           Title               a heading line
-ternHeadingDelim      Delimiter           its `#`s
-ternBlockDelim        Delimiter           the `:::` of an opener
-ternBlockName         Statement           its name
-ternBlockTitle        Title               `[Title]` of an opener or a fence
-ternTitleDelim        Delimiter           its `[ ]`
-ternLeafDelim         Delimiter           the `::` of a leaf
-ternLeafName          ternBlockName       its name
-ternCloser            Delimiter           `:::` or `:::/name`
-ternCloserName        Statement           the name in `:::/name`
-ternCellSep           Delimiter           `+++`
-ternRule              Delimiter           `---`
-ternQuote             Delimiter           `>` markers
-ternListMarker        Delimiter           `-` and `1.`
-ternTask              Special             `[ ]` and `[x]`
-ternFootnoteDef       Identifier          `[^x]:`
-ternTablePipe         Delimiter           `|` in a table row
-ternTableSep          Delimiter           a `|---|` row
-ternAttr              Delimiter           an attribute group `{…}`
-ternAttrId            Identifier          `#id`
-ternAttrClass         Type                `.class`
-ternAttrKey           Special             `key`
-ternAttrValue         String              `=value`
-ternFenceDelim        Delimiter           the run of a fence, ``` or ~~~
-ternFenceLang         Type                a fence's language
-ternFenceCode         String              a fence's body, in no language
-ternMathBlock         ternMath            `$$ … $$`
-ternMathDelim         Delimiter           `$$`
-ternHtmlComment       Comment             `<!-- -->`
-ternMetaKey           Identifier          the keys of `:::meta`
-ternMetaBody          String              the values of `:::meta`
-ternMacrosBody        ternMath            the body of `:::macros`
-ternRawText           String              the body of a `{raw}` container,
+luccetHeading           Title               a heading line
+luccetHeadingDelim      Delimiter           its `#`s
+luccetBlockDelim        Delimiter           the `:::` of an opener
+luccetBlockName         Statement           its name
+luccetBlockTitle        Title               `[Title]` of an opener or a fence
+luccetTitleDelim        Delimiter           its `[ ]`
+luccetLeafDelim         Delimiter           the `::` of a leaf
+luccetLeafName          luccetBlockName       its name
+luccetCloser            Delimiter           `:::` or `:::/name`
+luccetCloserName        Statement           the name in `:::/name`
+luccetCellSep           Delimiter           `+++`
+luccetRule              Delimiter           `---`
+luccetQuote             Delimiter           `>` markers
+luccetListMarker        Delimiter           `-` and `1.`
+luccetTask              Special             `[ ]` and `[x]`
+luccetFootnoteDef       Identifier          `[^x]:`
+luccetTablePipe         Delimiter           `|` in a table row
+luccetTableSep          Delimiter           a `|---|` row
+luccetAttr              Delimiter           an attribute group `{…}`
+luccetAttrId            Identifier          `#id`
+luccetAttrClass         Type                `.class`
+luccetAttrKey           Special             `key`
+luccetAttrValue         String              `=value`
+luccetFenceDelim        Delimiter           the run of a fence, ``` or ~~~
+luccetFenceLang         Type                a fence's language
+luccetFenceCode         String              a fence's body, in no language
+luccetMathBlock         luccetMath            `$$ … $$`
+luccetMathDelim         Delimiter           `$$`
+luccetHtmlComment       Comment             `<!-- -->`
+luccetMetaKey           Identifier          the keys of `:::meta`
+luccetMetaBody          String              the values of `:::meta`
+luccetMacrosBody        luccetMath            the body of `:::macros`
+luccetRawText           String              the body of a `{raw}` container,
                                           or of `:::script`, `:::style`
                                           or `:::html`
-ternEscape            Special             `\*`
-ternHardBreak         Special             `\` at the end of a line
-ternCode              String              a code span
-ternMath              Special             inline math, `$x$`
-ternEmphasis          italic              `*em*`
-ternStrong            bold                `**strong**`
-ternStrongEmphasis    bold, italic        `***both***`
-ternEmphasisDelim     Delimiter           `*`, `**`, `~~` and `==`
-ternStrike            strikethrough       `~~gone~~`
-ternMark              Search              `==key==`
-ternLink              Underlined          `[text]` of a link or an image
-ternLinkDelim         Delimiter           `[ ]( )` and `!`
-ternLinkDest          String              `(destination "title")`
-ternLinkTitle         String              its title
-ternSpanDelim         Delimiter           the `[ ]` of `[text]{…}`
-ternElement           Statement           `:name`
-ternElementDelim      Delimiter           the `[ ]` of `:name[…]`
-ternRef               Identifier          `@id`
-ternFootnoteRef       Identifier          `[^x]`
-ternAutolink          Underlined          URLs
-ternEntity            Special             `&amp;`
-ternHtmlInline        (HTML's groups)     inline tags such as `<b>` `</b>`
+luccetEscape            Special             `\*`
+luccetHardBreak         Special             `\` at the end of a line
+luccetCode              String              a code span
+luccetMath              Special             inline math, `$x$`
+luccetEmphasis          italic              `*em*`
+luccetStrong            bold                `**strong**`
+luccetStrongEmphasis    bold, italic        `***both***`
+luccetEmphasisDelim     Delimiter           `*`, `**`, `~~` and `==`
+luccetStrike            strikethrough       `~~gone~~`
+luccetMark              Search              `==key==`
+luccetLink              Underlined          `[text]` of a link or an image
+luccetLinkDelim         Delimiter           `[ ]( )` and `!`
+luccetLinkDest          String              `(destination "title")`
+luccetLinkTitle         String              its title
+luccetSpanDelim         Delimiter           the `[ ]` of `[text]{…}`
+luccetElement           Statement           `:name`
+luccetElementDelim      Delimiter           the `[ ]` of `:name[…]`
+luccetRef               Identifier          `@id`
+luccetFootnoteRef       Identifier          `[^x]`
+luccetAutolink          Underlined          URLs
+luccetEntity            Special             `&amp;`
+luccetHtmlInline        (HTML's groups)     inline tags such as `<b>` `</b>`
 
-These regions have no style of their own; |synstack()| shows them: ternHead
-(HTML inside), ternHtmlBlock (HTML inside), ternFence, ternFenceCode_{name}
-(that syntax inside), ternMeta, ternMacros, ternRaw, ternReserved,
-ternTableRow, ternAttrLine, ternSpan, ternElementText and ternLeafContent.
+These regions have no style of their own; |synstack()| shows them: luccetHead
+(HTML inside), luccetHtmlBlock (HTML inside), luccetFence, luccetFenceCode_{name}
+(that syntax inside), luccetMeta, luccetMacros, luccetRaw, luccetReserved,
+luccetTableRow, luccetAttrLine, luccetSpan, luccetElementText and luccetLeafContent.
 
-Fenced code in its language                           *g:tern_fence_languages*
-                                                      *b:tern_fence_languages*
+Fenced code in its language                           *g:luccet_fence_languages*
+                                                      *b:luccet_fence_languages*
 
 Fenced code is highlighted in its language for the syntaxes named in
-`b:tern_fence_languages`, else `g:tern_fence_languages`. The default is: >vim
-    let g:tern_fence_languages = ['javascript', 'css', 'html']
+`b:luccet_fence_languages`, else `g:luccet_fence_languages`. The default is: >vim
+    let g:luccet_fence_languages = ['javascript', 'css', 'html']
 <
 These three cost nothing, because the HTML syntax, which the head needs,
 brings them in. Every other syntax, such as 'python' or 'sh', is loaded with
 every note, so name only the ones you use. [] turns the fence languages off,
-and every fence is then highlighted as ternFenceCode.
+and every fence is then highlighted as luccetFenceCode.
 
 In a list, each syntax matches its own name as the fence's info word, and
 these aliases:
@@ -1040,18 +1040,18 @@ these aliases:
     cpp          cpp c++ cxx
 
 A dictionary gives the info words itself: >vim
-    let g:tern_fence_languages = {'python': ['py', 'python'], 'sh': ['sh']}
+    let g:luccet_fence_languages = {'python': ['py', 'python'], 'sh': ['sh']}
 <
 The same in Lua: >lua
-    vim.g.tern_fence_languages = { 'javascript', 'css', 'html', 'python' }
+    vim.g.luccet_fence_languages = { 'javascript', 'css', 'html', 'python' }
 <
 A name must be made of letters, digits and _, and have a syntax/{name}.vim
 on 'runtimepath'; any other name is skipped. The fence's body is then the
-region ternFenceCode_{name}. The variables are read when the syntax loads:
-set them in your config, or run `:set syntax=tern` after a change.
+region luccetFenceCode_{name}. The variables are read when the syntax loads:
+set them in your config, or run `:set syntax=luccet` after a change.
 
 ==============================================================================
-10. FORMATTING                                                   *tern-format*
+10. FORMATTING                                                   *luccet-format*
 
 The ftplugin sets Neovim's own formatting up for notes, so that = and gq
 line up a list item's lines with its text:
@@ -1061,11 +1061,11 @@ Nothing else formats a note: no command, nothing on write. The plugin keeps
 to changes that cannot change what the page shows, as the next paragraphs
 say.
 
-=                                                         *tern-format-indent*
+=                                                         *luccet-format-indent*
     Lines up each line that continues a paragraph with the paragraph's
     first line, and a list item's or a footnote's with the text after its
     marker (a task's after its box). `gg=G` does the whole note. Only
-    whitespace changes, and only on those lines: Tern has no indented code
+    whitespace changes, and only on those lines: Luccet has no indented code
     and ignores indentation past a list item's column, and a line that
     continues a paragraph does so at any indentation. A paragraph's first
     line, any line that may start a block (a heading, a list item, a
@@ -1078,7 +1078,7 @@ say.
     them while = runs, and back to your value after. As in any file, =
     empties a line that holds only whitespace.
 
-gq                                                         *tern-format-gq*
+gq                                                         *luccet-format-gq*
     Neovim's formatting, on paragraphs only: the lines of a list item go
     under its text, those of a quote keep their `>`. It never joins a
     paragraph with a line that is not one, such as the head, a heading or
@@ -1096,214 +1096,214 @@ Soft wrap
     With 'wrap', a long list item's screen lines start under its text
     ('breakindent', with "list:-1" in 'breakindentopt').
 
-What tells a paragraph from code is the syntax (|tern-highlight|): with
+What tells a paragraph from code is the syntax (|luccet-highlight|): with
 `:syntax off`, = moves nothing and gq formats nothing. Typing is not
 changed: no key re-indents ('indentkeys' is empty), and 't' stays out of
 'formatoptions', as hard-wrapping while typing would break one-line
 constructs. The options it sets: 'comments' (quotes only, so that `* ` and
 `- ` are not taken for comment leaders), 'formatlistpat', the "n" flag of
 'formatoptions', 'formatexpr', 'indentexpr', 'indentkeys', 'breakindent'
-and 'breakindentopt'. To change one, set it in after/ftplugin/tern.lua.
+and 'breakindentopt'. To change one, set it in after/ftplugin/luccet.lua.
 
 ==============================================================================
-11. HEALTH                                                       *tern-health*
+11. HEALTH                                                       *luccet-health*
 
-`:checkhealth tern` checks the buffer you ran it from, else the current
+`:checkhealth luccet` checks the buffer you ran it from, else the current
 directory. Its sections:
 • Neovim: the version, which must be 0.11 or later.
 • Node: the `node` on PATH, which must be version 22 or later.
-• Command line: $TERN_CLI when it is set. Then the language server command
-  for the buffer and the source that found it (|tern-cli-lookup|), or why
-  none was found. It warns when |:TernCheck| and |:TernBuild| cannot run.
-• Language server: each running tern client, with its root and its number
+• Command line: $LUCCET_CLI when it is set. Then the language server command
+  for the buffer and the source that found it (|luccet-cli-lookup|), or why
+  none was found. It warns when |:LuccetCheck| and |:LuccetBuild| cannot run.
+• Language server: each running luccet client, with its root and its number
   of buffers, and whether the buffer is attached and has an outline yet.
-  With |tern-option-lsp| false, it says the server is off.
+  With |luccet-option-lsp| false, it says the server is off.
 • This buffer: whether it is a note, with the line and the tag that make it
   one, and its filetype.
 • Options: the options in effect.
 
 ==============================================================================
-12. WITHOUT NODE                                           *tern-without-node*
+12. WITHOUT NODE                                           *luccet-without-node*
 
-Without Node 22 or later, or without the Tern CLI, the language server
+Without Node 22 or later, or without the Luccet CLI, the language server
 cannot start. When the first note opens, the plugin says why, once a
 session, and goes on. For example: >
-    tern.nvim: the language server cannot start: node is not on PATH; Tern
+    luccet.nvim: the language server cannot start: node is not on PATH; Luccet
     needs Node 22 or later. Notes fold by headings only, without
-    diagnostics or completion (:checkhealth tern).
+    diagnostics or completion (:checkhealth luccet).
 <
 These still work:
-• detection and the filetype `tern`;
-• highlighting (|tern-highlight|);
-• formatting with = and gq (|tern-format|);
-• folding by headings (|tern-lexical-folds|);
-• |:TernInit|;
-• |:TernPreview| and its live reload, because the server runs in Neovim and
-  the browser runs tern.js;
-• `:checkhealth tern`.
+• detection and the filetype `luccet`;
+• highlighting (|luccet-highlight|);
+• formatting with = and gq (|luccet-format|);
+• folding by headings (|luccet-lexical-folds|);
+• |:LuccetInit|;
+• |:LuccetPreview| and its live reload, because the server runs in Neovim and
+  the browser runs luccet.js;
+• `:checkhealth luccet`.
 
 These do not: diagnostics, completion, definition, references, rename,
-hover, symbols, the server's folds, |:TernMove|, and the virtual text, which
-is drawn from the server's outline. |:TernCheck| and |:TernBuild| say why
+hover, symbols, the server's folds, |:LuccetMove|, and the virtual text, which
+is drawn from the server's outline. |:LuccetCheck| and |:LuccetBuild| say why
 they cannot run.
 
-With |tern-option-lsp| false, notes behave the same, without the notice, and
-|:TernCheck| and |:TernBuild| still work when Node and the CLI are there.
+With |luccet-option-lsp| false, notes behave the same, without the notice, and
+|:LuccetCheck| and |:LuccetBuild| still work when Node and the CLI are there.
 
 ==============================================================================
-13. THE API FOR USERS                                               *tern-api*
+13. THE API FOR USERS                                               *luccet-api*
 
 These modules are for your config and for other plugins. Each loads on first
 use. {buf} is a buffer number, where 0 means the current buffer.
 
-require('tern') ~
+require('luccet') ~
 
 setup({opts})
-    Sets the options. See |tern.setup()|.
+    Sets the options. See |luccet.setup()|.
 
-attach({buf})                                                  *tern.attach()*
-    Starts the language server for {buf} (with |tern-option-lsp| false,
-    folds it by headings instead) and the virtual text. ftplugin/tern.lua
-    calls it for each buffer whose filetype becomes `tern`.
+attach({buf})                                                  *luccet.attach()*
+    Starts the language server for {buf} (with |luccet-option-lsp| false,
+    folds it by headings instead) and the virtual text. ftplugin/luccet.lua
+    calls it for each buffer whose filetype becomes `luccet`.
 
-require('tern.lsp') ~
+require('luccet.lsp') ~
 
-start({buf})                                                *tern.lsp.start()*
+start({buf})                                                *luccet.lsp.start()*
     Starts the server for {buf}'s root, or attaches {buf} to the one that
     runs, and sets its folds. Returns the client id. When no server can
     start, returns nil, folds {buf} by headings and, once a session, says
     why.
 
-client({buf})                                              *tern.lsp.client()*
-    The `tern` client (|vim.lsp.Client|) attached to {buf}, or nil.
+client({buf})                                              *luccet.lsp.client()*
+    The `luccet` client (|vim.lsp.Client|) attached to {buf}, or nil.
 
-outline({buf})                                            *tern.lsp.outline()*
-    The last `tern/outline` params for {buf}, or nil before the first one.
-    See |tern-outline|.
+outline({buf})                                            *luccet.lsp.outline()*
+    The last `luccet/outline` params for {buf}, or nil before the first one.
+    See |luccet-outline|.
 
-lexical({buf})                                            *tern.lsp.lexical()*
-    Folds {buf} by headings, without a server (|tern-lexical-folds|).
+lexical({buf})                                            *luccet.lsp.lexical()*
+    Folds {buf} by headings, without a server (|luccet-lexical-folds|).
 
-foldexpr({lnum})                                         *tern.lsp.foldexpr()*
+foldexpr({lnum})                                         *luccet.lsp.foldexpr()*
     The 'foldexpr' that lexical() sets: the fold level of line {lnum} in
     the current buffer.
 
-restart_window                                       *tern.lsp.restart_window*
+restart_window                                       *luccet.lsp.restart_window*
     In milliseconds, 60000 by default. A server that crashes again within
     this time of its restart is not restarted.
 
-require('tern.render') ~
+require('luccet.render') ~
 
-attach({buf})                                           *tern.render.attach()*
-    Draws the virtual text in {buf} now, and again on each |TernOutline|.
+attach({buf})                                           *luccet.render.attach()*
+    Draws the virtual text in {buf} now, and again on each |LuccetOutline|.
 
-command({args})                                        *tern.render.command()*
-    What |:TernRender| runs on the current buffer. {args} is 'on', 'off' or
+command({args})                                        *luccet.render.command()*
+    What |:LuccetRender| runs on the current buffer. {args} is 'on', 'off' or
     'toggle', or the table a user command receives.
 
-draw({buf}, {outline})                                    *tern.render.draw()*
-    Draws {outline}, a table shaped like the result of |tern.lsp.outline()|,
+draw({buf}, {outline})                                    *luccet.render.draw()*
+    Draws {outline}, a table shaped like the result of |luccet.lsp.outline()|,
     over {buf}, replacing what was drawn. It follows the
-    |tern-option-render| flags. The |TernOutline| event calls it; you can
+    |luccet-option-render| flags. The |LuccetOutline| event calls it; you can
     call it to draw an outline of your own.
 
-enabled({buf})                                         *tern.render.enabled()*
+enabled({buf})                                         *luccet.render.enabled()*
     Whether {buf} shows the virtual text, for a statusline.
 
-ns                                                            *tern.render.ns*
+ns                                                            *luccet.render.ns*
     The namespace of the virtual text's extmarks.
 
-require('tern.preview') ~
+require('luccet.preview') ~
 
-start()                                                 *tern.preview.start()*
-    What |:TernPreview| runs for the current buffer. Returns the page's URL,
+start()                                                 *luccet.preview.start()*
+    What |:LuccetPreview| runs for the current buffer. Returns the page's URL,
     or nil when the file cannot be served; it then says why.
 
-stop({quiet})                                            *tern.preview.stop()*
-    What |:TernPreviewStop| runs. With {quiet} true, it prints nothing.
+stop({quiet})                                            *luccet.preview.stop()*
+    What |:LuccetPreviewStop| runs. With {quiet} true, it prints nothing.
 
-info()                                                   *tern.preview.info()*
+info()                                                   *luccet.preview.info()*
     The running server as { root, url, host, port, clients }, or nil. `url`
     is the base http://HOST:PORT, and `clients` the number of pages that
     listen for reloads.
 
-require('tern.detect') ~
+require('luccet.detect') ~
 
-line({s})                                                 *tern.detect.line()*
-    Whether the line {s} makes a file a note (|tern-detection|). Returns
+line({s})                                                 *luccet.detect.line()*
+    Whether the line {s} makes a file a note (|luccet-detection|). Returns
     { col, tag }, where col is the 1-based byte column of the tag and tag is
     the `<script …>` tag, or nil.
 
-buffer({buf})                                           *tern.detect.buffer()*
+buffer({buf})                                           *luccet.detect.buffer()*
     The first line of {buf} that makes it a note, as { lnum, col, tag }, or
     nil. Only the first max_lines lines are read.
 
-max_lines                                              *tern.detect.max_lines*
+max_lines                                              *luccet.detect.max_lines*
     How many lines detection reads: 1000.
 
 For example: >lua
-    local d = require('tern.detect').buffer(0)
+    local d = require('luccet.detect').buffer(0)
     if d then
-      print('tern.js is loaded on line ' .. d.lnum)
+      print('luccet.js is loaded on line ' .. d.lnum)
     end
 <
 ==============================================================================
-14. TROUBLESHOOTING                                     *tern-troubleshooting*
+14. TROUBLESHOOTING                                     *luccet-troubleshooting*
 
-Start with `:checkhealth tern` in the note (|tern-health|).
+Start with `:checkhealth luccet` in the note (|luccet-health|).
 
 The language server does not start ~
 The notice says why, and so do the Node and Command line sections of the
 health check. The usual causes:
 • `node` is missing or older than 22. Install Node 22 or later. Each node
   binary is checked once a session, so restart Neovim after an upgrade.
-• No tern-cli.js was found. Run `npm link` in a Tern checkout, set
-  $TERN_CLI, or set |tern-option-cmd|.
-• The `tern` on PATH is another program. It is skipped, because an npm
-  package of that name is not Tern; use $TERN_CLI or `cmd`.
+• No luccet-cli.js was found. Run `npm link` in a Luccet checkout, set
+  $LUCCET_CLI, or set |luccet-option-cmd|.
+• The `luccet` on PATH is another program. It is skipped, because an npm
+  package of that name is not Luccet; use $LUCCET_CLI or `cmd`.
 • "… exited before it started": the command runs, but is not a language
   server, for example a wrong path in `cmd`. Run it in a terminal to see
   why.
 The notice comes once a session. After you fix the cause, |:edit| the note
 to start the server.
 
-The file does not get the filetype tern ~
+The file does not get the filetype luccet ~
 • The name must end in .html or .htm.
-• The tern.js line must be within the first 1000 lines and follow the rule
-  in |tern-detection|.
+• The luccet.js line must be within the first 1000 lines and follow the rule
+  in |luccet-detection|.
 • After you add the line by hand, run `:filetype detect` or |:edit|.
-  |:TernInit| sets the filetype itself.
+  |:LuccetInit| sets the filetype itself.
 
 No virtual text ~
 • It needs the language server: see above.
-• With |tern-option-render.enabled| false, run `:TernRender on`.
+• With |luccet-option-render.enabled| false, run `:LuccetRender on`.
 • It is drawn when an outline arrives: when the note opens, and 150 ms
   after you stop typing.
 • Only labelled blocks, references that resolve, equation numbers, and
   formulas with a faithful Unicode form get text.
 
 The folds are not the ones I set ~
-With |tern-option-fold| true, the plugin sets 'foldmethod', 'foldexpr',
+With |luccet-option-fold| true, the plugin sets 'foldmethod', 'foldexpr',
 'foldlevel' and 'foldtext' in each window that shows a note. Set
 `fold = false` to keep your own.
 
-:TernCheck or :TernBuild cannot run ~
-They need the CLI, found like the server's (|tern-cli-lookup|). When `cmd`
+:LuccetCheck or :LuccetBuild cannot run ~
+They need the CLI, found like the server's (|luccet-cli-lookup|). When `cmd`
 is a function, or a list without `lsp`, they use the other sources, and the
 health check warns when none finds the CLI.
 
 The preview does not change ~
-• With |tern-option-preview.update| 'write', or for a file that is not a
+• With |luccet-option-preview.update| 'write', or for a file that is not a
   note (CSS, an add-on), write the buffer: the preview serves the file on
   disk.
 • Changes made by other programs do not refresh the page; reload it.
-• The page reloads instead of refreshing in place when the tern.js tag is
+• The page reloads instead of refreshing in place when the luccet.js tag is
   not closed on its own line, or when the head changed.
-• "the port is in use": set |tern-option-preview.port| to another port, or
+• "the port is in use": set |luccet-option-preview.port| to another port, or
   to 0 for any free port.
 
 ==============================================================================
-15. LICENSE                                                     *tern-license*
+15. LICENSE                                                     *luccet-license*
 
 MIT License. Copyright (c) 2026 OzkrAC. The full text is in the LICENSE
 file of this plugin.
