@@ -181,6 +181,7 @@ The defaults: >lua
         open = true,
         browser = nil,
         update = 'change',
+        hidden = {},
       },
     })
 <
@@ -282,6 +283,16 @@ preview.update                                    *luccet-option-preview.update*
     buffer as you type, written or not: a modified note is served from its
     buffer (|luccet-preview-unsaved|). With 'write', it refreshes when you
     write, and the server serves the files on disk only.
+
+preview.hidden                                    *luccet-option-preview.hidden*
+    List. Default: {}.
+    Hidden folders (a name starting with a dot) the server serves anyway,
+    each by its path under the root, such as { '.luccet' } for a project
+    that keeps luccet.js and its add-ons in .luccet/. An entry allows the
+    files under that folder only; a hidden name further down, and every
+    other hidden file or folder, stays refused. The list applies under any
+    root, so keep it to folders you mean to publish, never '.git'. See
+    |luccet-preview-security|.
 
 ==============================================================================
 5. COMMANDS                                                    *luccet-commands*
@@ -839,7 +850,8 @@ server moves to the new root. With |luccet-option-preview.port| 0 it keeps its
 port when it can, so the old root's pages reload into "404 Not Found"
 instead of retrying forever.
 
-What it serves. Files under the root, to GET and HEAD requests. A directory
+What it serves. Files under the root, to GET and HEAD requests, except
+hidden ones (a name starting with a dot) outside |luccet-option-preview.hidden|. A directory
 serves its index.html; a directory URL without its final slash is
 redirected. Byte ranges are supported, so audio and video can seek. The
 content type comes from the file's extension, and every response has

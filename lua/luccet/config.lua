@@ -32,6 +32,7 @@ M.defaults = {
     open = true, -- open the page in a browser
     browser = nil, -- the command to open it with; nil: vim.ui.open
     update = 'change', -- 'change': the page follows the note's buffer, written or not; 'write': on each write
+    hidden = {}, -- hidden folders to serve anyway, by their path under the root: { '.luccet' }
   },
 }
 

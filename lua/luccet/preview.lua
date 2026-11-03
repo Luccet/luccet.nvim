@@ -21,8 +21,8 @@
 -- same-origin, so other pages cannot embed the files. The request head is
 -- capped in size and time, and connections in number. A path must resolve
 -- (realpath) inside the root, so neither .. nor a symlink leaves it; no
--- file or folder whose name starts with a dot is served, nor anything but
--- regular files (a FIFO would hang a read); no directory listings.
+-- file or folder whose name starts with a dot is served (but under the
+-- folders preview.hidden names), nor anything but regular files (a FIFO would hang a read); no directory listings.
 --
 -- Live reload. A served note (an .html that luccet.detect calls one) gets
 -- data-diagnostics on its luccet.js tag, and <script src="/__tern/live.js">
@@ -281,8 +281,27 @@ local function inside(srv, real)
   end
 end
 
-local function dotted(rel)
+local function has_dot(rel)
   return ('/' .. rel):find('/%.') ~= nil
+end
+
+-- Whether rel (a path under the root) is hidden: a name in it starts with a
+-- dot, outside the folders preview.hidden allows (paths under the root, such
+-- as '.luccet'). Under an allowed folder, a further hidden name is hidden.
+local function dotted(rel)
+  if not has_dot(rel) then
+    return false
+  end
+  for _, h in ipairs(config.options.preview.hidden or {}) do
+    h = type(h) == 'string' and h:gsub('^/+', ''):gsub('/+$', '') or ''
+    -- An entry with a . or .. segment names nothing (paths here have none).
+    if h ~= '' and not ('/' .. h .. '/'):find('/%.%.?/') and (rel == h or rel:sub(1, #h + 1) == h .. '/') then
+      if not has_dot(rel:sub(#h + 2)) then
+        return false
+      end
+    end
+  end
+  return true
 end
 
 ------------------------------------------------------------------ responses
@@ -365,11 +384,11 @@ local function resolve(srv, path, dirs)
       return nil, 403
     end
     if seg ~= '.' then
-      if seg:sub(1, 1) == '.' then
-        return nil, 404
-      end
       segs[#segs + 1] = seg
     end
+  end
+  if dotted(table.concat(segs, '/')) then
+    return nil, 404
   end
   local real = uv.fs_realpath(srv.real .. '/' .. table.concat(segs, '/'))
   if not real then
@@ -959,7 +978,7 @@ function M.start()
   if not rel then
     return notify(('luccet: %s is a link to a file outside %s, which the preview does not serve'):format(name, S.root), vim.log.levels.ERROR)
   elseif dotted(rel) then
-    return notify(('luccet: %s is hidden (a name starting with a dot), which the preview does not serve'):format(rel), vim.log.levels.WARN)
+    return notify(('luccet: %s is hidden (a name starting with a dot), which the preview does not serve (see preview.hidden)'):format(rel), vim.log.levels.WARN)
   end
   local live = config.options.preview.update ~= 'write'
   local url = S.base .. '/' .. encode(rel)

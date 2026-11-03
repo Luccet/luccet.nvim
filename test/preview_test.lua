@@ -523,6 +523,34 @@ return {
     T.eq(status(T, '/nothing.html'), 404, 'missing')
   end),
 
+  case('serves the hidden folders preview.hidden allows, and no others', function(T)
+    require('luccet').setup({ lsp = false, render = { enabled = false }, preview = { open = false, hidden = { '.luccet', '/.assets/', '../x', './.env' } } })
+    local dir = project(T)
+    write(dir .. '/.luccet/site.css', 'body {}')
+    write(dir .. '/.luccet/.secret', 'no')
+    write(dir .. '/.luccet/.inner/a.css', 'no')
+    write(dir .. '/.luccet/index.html', '<p>hub</p>')
+    write(dir .. '/.luccet-other/a.css', 'no')
+    write(dir .. '/.assets/a.png', 'png')
+    write(dir .. '/notes/.luccet/a.css', 'no')
+    write(dir .. '/.env', 'TOKEN=1')
+    write(dir .. '/.git/config', '[core]')
+    write(dir .. '/.luccet/n.html', NOTE)
+    assert(uv.fs_symlink(dir .. '/.git/config', dir .. '/.luccet/config'))
+    start(T, dir .. '/notes/a.html')
+
+    T.eq(req(T, '/.luccet/site.css').body, 'body {}', 'an allowed folder')
+    T.eq(req(T, '/%2eluccet/site.css').body, 'body {}', 'encoded')
+    T.eq(req(T, '/.luccet/').body, '<p>hub</p>', 'its index.html')
+    T.eq(req(T, '/.assets/a.png').body, 'png', 'an entry with slashes around it')
+    for _, path in ipairs({ '/.luccet/.secret', '/.luccet/.inner/a.css', '/.luccet-other/a.css', '/notes/.luccet/a.css', '/.env', '/.git/config', '/.luccet/config' }) do
+      T.eq(status(T, path), 404, path)
+    end
+    -- A note inside an allowed folder can be previewed.
+    local url = start(T, dir .. '/.luccet/n.html')
+    T.ok(url:find('/.luccet/n.html', 1, true), 'previews a note under it: ' .. url)
+  end),
+
   case('caps the request head in size and in time, and connections in number', function(T)
     local dir = project(T)
     start(T, dir .. '/notes/a.html')
