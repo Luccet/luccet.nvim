@@ -7,6 +7,18 @@
 -- The Luccet engine (for the language server) is $LUCCET_ROOT, else a checkout
 -- next to this one: ../luccet.
 local root = vim.fs.normalize(vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h'))
+-- Without the user's files: -u NONE skips init.lua, but the config and data
+-- directories stay on 'runtimepath', so a ~/.config/nvim/ftplugin/luccet.lua
+-- would set its options in every test.
+for _, dir in ipairs(vim.list_extend({ vim.fn.stdpath('config'), vim.fn.stdpath('data') .. '/site' },
+  vim.tbl_map(function(d) return d .. '/site' end, vim.fn.stdpath('data_dirs')))) do
+  vim.opt.runtimepath:remove(dir)
+  vim.opt.runtimepath:remove(dir .. '/after')
+end
+for _, dir in ipairs(vim.fn.stdpath('config_dirs')) do
+  vim.opt.runtimepath:remove(dir)
+  vim.opt.runtimepath:remove(dir .. '/after')
+end
 vim.opt.runtimepath:prepend(root)
 vim.cmd('filetype plugin on')
 vim.cmd('runtime plugin/luccet.lua')

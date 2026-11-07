@@ -295,6 +295,8 @@ let s:fence_words = {
       \ 'yaml': ['yaml', 'yml'],
       \ 'markdown': ['md', 'markdown'],
       \ 'cpp': ['cpp', 'c++', 'cxx'],
+      \ 'json': ['json', 'vega-lite', 'vega'],
+      \ 'dot': ['dot', 'graphviz'],
       \ }
 let s:free = {'html': '@luccetHtml', 'javascript': '@htmlJavaScript', 'css': '@htmlCss'}
 let s:langs = get(b:, 'luccet_fence_languages', get(g:, 'luccet_fence_languages', ['javascript', 'css', 'html']))

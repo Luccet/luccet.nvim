@@ -155,7 +155,7 @@ end
 
 -- An event stream client and the events it has received.
 local function events(T)
-  local c = client(T, P.info().port, ('GET /__tern/events HTTP/1.1\r\nHost: 127.0.0.1:%d\r\n\r\n'):format(P.info().port))
+  local c = client(T, P.info().port, ('GET /__luccet/events HTTP/1.1\r\nHost: 127.0.0.1:%d\r\n\r\n'):format(P.info().port))
   T.wait(3000, function()
     return c.text():find(': luccet\n\n', 1, true)
   end, 'the event stream opens')
@@ -407,7 +407,7 @@ return {
       end
     end
     local head = NOTE:sub(1, select(2, NOTE:find('\n', NOTE:find('\n') + 1, true)))
-    T.eq(got[2], '<title>A</title><script src="/__tern/live.js" data-path="/notes/a.html" data-line="2" data-head="'
+    T.eq(got[2], '<title>A</title><script src="/__luccet/live.js" data-path="/notes/a.html" data-line="2" data-head="'
       .. fnv(head) .. '" nonce="abc"></script><script data-diagnostics src="../luccet.js" nonce="abc"></script>', 'the luccet.js line')
     T.eq(require('luccet.detect').line(got[2]).tag, '<script data-diagnostics src="../luccet.js" nonce="abc">', 'still the luccet.js line')
     T.eq(req(T, '/notes/a.html', { method = 'HEAD' }).h['content-length'], tostring(#r.body), 'HEAD length')
@@ -432,7 +432,7 @@ return {
     local page = '<!doctype html><title>Page</title><script src="app.js"></script>\n<p>hi</p>\n'
     write(dir .. '/page.html', page)
     T.eq(req(T, '/page.html').body, page, 'not a note')
-    T.eq(req(T, '/__tern/raw/notes/a.html').body, read(dir .. '/notes/a.html'), 'the raw file')
+    T.eq(req(T, '/__luccet/raw/notes/a.html').body, read(dir .. '/notes/a.html'), 'the raw file')
   end),
 
   case('files are served with their type, in ranges, and folders through index.html', function(T)
@@ -466,8 +466,8 @@ return {
     T.eq(req(T, '/docs/').body, '<p>docs</p>', 'index.html')
     T.eq(status(T, '/notes/'), 404, 'no listing')
     T.eq(status(T, '/style.css?v=2#x'), 200, 'a query')
-    T.eq(req(T, '/__tern/live.js').h['content-type'], 'text/javascript; charset=utf-8', 'the live script')
-    T.eq(status(T, '/__tern/nothing'), 404, 'the reserved prefix')
+    T.eq(req(T, '/__luccet/live.js').h['content-type'], 'text/javascript; charset=utf-8', 'the live script')
+    T.eq(status(T, '/__luccet/nothing'), 404, 'the reserved prefix')
   end),
 
   case('refuses foreign hosts, cross-site requests, escapes, dotfiles and other methods', function(T)
@@ -495,20 +495,20 @@ return {
     T.eq(status(T, '/style.css', { headers = { 'Host: 127.0.0.1:' .. port } }), 400, 'two Hosts')
     -- Another site's page.
     T.eq(status(T, '/style.css', { headers = { 'Sec-Fetch-Site: cross-site', 'Sec-Fetch-Mode: no-cors' } }), 403, 'cross-site embedding')
-    T.eq(status(T, '/__tern/events', { headers = { 'Sec-Fetch-Site: cross-site', 'Sec-Fetch-Mode: cors' } }), 403, 'cross-site events')
+    T.eq(status(T, '/__luccet/events', { headers = { 'Sec-Fetch-Site: cross-site', 'Sec-Fetch-Mode: cors' } }), 403, 'cross-site events')
     T.eq(status(T, '/notes/a.html', { headers = { 'Sec-Fetch-Site: cross-site', 'Sec-Fetch-Mode: navigate' } }), 200, 'a link from elsewhere')
     T.eq(status(T, '/style.css', { headers = { 'Sec-Fetch-Site: same-origin', 'Sec-Fetch-Mode: no-cors' } }), 200, 'the page itself')
     -- Traversal, raw and encoded.
-    for _, path in ipairs({ '/../secret.txt', '/notes/../../secret.txt', '/%2e%2e/secret.txt', '/..%2fsecret.txt', '/notes/%2E%2E/%2E%2E/secret.txt', '/__tern/raw/../secret.txt', '/a\\..\\b' }) do
+    for _, path in ipairs({ '/../secret.txt', '/notes/../../secret.txt', '/%2e%2e/secret.txt', '/..%2fsecret.txt', '/notes/%2E%2E/%2E%2E/secret.txt', '/__luccet/raw/../secret.txt', '/a\\..\\b' }) do
       T.eq(status(T, path), 403, path)
     end
     -- Symlinks: out of the root no, within it yes.
     T.eq(status(T, '/escape.txt'), 403, 'a link to a file outside')
     T.eq(status(T, '/away/secret.txt'), 403, 'a link to a folder outside')
-    T.eq(status(T, '/__tern/raw/escape.txt'), 403, 'raw, through a link')
+    T.eq(status(T, '/__luccet/raw/escape.txt'), 403, 'raw, through a link')
     T.eq(req(T, '/alias.css').body, 'body { color: red }\n', 'a link inside')
     -- Dotfiles, by name or through a link.
-    for _, path in ipairs({ '/.env', '/.git/config', '/notes/.draft.html', '/%2eenv', '/.hidden/file.txt', '/shown.txt', '/__tern/raw/.env' }) do
+    for _, path in ipairs({ '/.env', '/.git/config', '/notes/.draft.html', '/%2eenv', '/.hidden/file.txt', '/shown.txt', '/__luccet/raw/.env' }) do
       T.eq(status(T, path), 404, path)
     end
     -- Methods.
@@ -700,7 +700,7 @@ return {
     T.ok(P.start(), 'started')
     T.ok(not last_msg(T):find('write the buffer', 1, true), 'nothing to write: ' .. last_msg(T))
     local raw = function()
-      return req(T, '/__tern/raw/notes/a.html').body
+      return req(T, '/__luccet/raw/notes/a.html').body
     end
     T.eq(raw(), NOTE .. 'Before the preview.\n', 'modified before :LuccetPreview: served at once')
     local es = events(T)
@@ -723,7 +723,7 @@ return {
     local text = NOTE .. 'Before the preview.\nOne.\nTwo.\n'
     T.eq(raw(), text, 'the raw note: the buffer')
     local page = req(T, '/notes/a.html').body
-    T.ok(page:find('Two.', 1, true) and page:find('/__tern/live.js', 1, true), 'the page: the buffer, with the live script')
+    T.ok(page:find('Two.', 1, true) and page:find('/__luccet/live.js', 1, true), 'the page: the buffer, with the live script')
     T.eq(read(file), NOTE, 'the file is not touched')
 
     vim.cmd('silent edit!')
@@ -769,7 +769,7 @@ return {
     local es = events(T)
     vim.api.nvim_exec_autocmds('TextChanged', { buffer = 0 })
     vim.wait(400)
-    T.eq({ #es.events(), req(T, '/__tern/raw/notes/a.html').body }, { 0, NOTE }, 'no event; the file')
+    T.eq({ #es.events(), req(T, '/__luccet/raw/notes/a.html').body }, { 0, NOTE }, 'no event; the file')
     vim.cmd('silent write')
     T.wait(2000, function()
       return #es.events() == 1

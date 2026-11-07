@@ -104,7 +104,7 @@ local function bad_type(inner)
 end
 
 -- Does some `src=` in the tag's inside name luccet.js? `tag` ends with `>`.
-local function src_is_tern(inner, after_tag)
+local function src_is_luccet(inner, after_tag)
   local from = 1
   while true do
     local s, e = inner:find('%ssrc%s*=%s*', from)
@@ -188,7 +188,7 @@ local function tag_at(s, low, i)
   if has_attr(inner, 'async') or has_attr(inner, 'defer') or has_attr(inner, 'nomodule') or has_attr(inner, 'data-built') or bad_type(inner) then
     return nil
   end
-  if not src_is_tern(inner, '>') then
+  if not src_is_luccet(inner, '>') then
     return nil
   end
   return s:sub(i, j)

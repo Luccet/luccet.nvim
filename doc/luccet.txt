@@ -705,7 +705,8 @@ The head (|luccet-option-render.conceal|)                     *luccet-render-hea
     The head, from the doctype to the luccet.js line, with any window.LUCCET
     script, <title> or <style>, is folded into one line that says what it
     holds: its title, `schema` for window.LUCCET, other scripts, `style`,
-    and the add-ons of the luccet.js line's `data-use`:
+    and the add-ons of the luccet.js line's `data-use`, each by its file
+    name (https://cdn.luccet.dev/code/v1/code.js is `code.js`):
         <!doctype html><meta charset="utf-8">
         <script>                              ⟨head⟩ schema · style
           window.LUCCET = { schema: … };
@@ -727,11 +728,13 @@ HTML code blocks (|luccet-option-render.conceal|)
     written.
 
 TeX as Unicode                                                      *luccet-tex*
-    lua/luccet/tex.lua reads a small subset of KaTeX: Greek letters and
-    symbols, function names, the superscripts and subscripts that Unicode
-    has (x^2, x_i, x^{-1}), \mathbb and the other alphabets, \frac and
-    \sqrt written on one line, accents on one letter, \text, and
-    \left … \right. Spacing follows TeX's atom classes, not the source.
+    lua/luccet/tex.lua reads what a line of text can show of the engine's
+    math: every symbol the engine knows, as the character the page shows
+    (its table, luccet.tex.symbols, copied into lua/luccet/tex_symbols.lua),
+    function names, the superscripts and subscripts that Unicode has (x^2,
+    x_i, x^{-1}), \mathbb and the other alphabets, \frac and \sqrt written
+    on one line, accents on one letter, \text, and \left … \right. Spacing
+    follows TeX's atom classes, not the source.
     Examples:
         \alpha + \beta        α + β
         x^2 + y_i             x² + yᵢ
@@ -769,8 +772,11 @@ TeX as Unicode                                                      *luccet-tex*
     A brace over an even number of rows starts on the `\begin` line, so
     that its middle is on a row.
     The TeX is read after the note's macros, which every formula shares,
-    as on the page: the string values of `window.LUCCET.katex.macros` in the
-    head, then the definitions of each `:::macros` block, in the note's
+    as on the page: the string values of `window.LUCCET.macros` in the
+    head, each name with or without its backslash, as the engine reads
+    them (`{ macros: { '\\R': '\\mathbb{R}' } }`; Luccet 1's
+    `window.LUCCET.katex.macros` is read by neither), then the definitions
+    of each `:::macros` block, in the note's
     order, wherever the formula is. `\def`, `\gdef`, `\edef`, `\xdef`,
     `\let`, and `\newcommand`, `\renewcommand` and `\providecommand` with
     their `[n]` arguments are read:
@@ -861,7 +867,7 @@ Notes. A note (an .html or .htm file that is a note, up to 16 MiB) is served
 with two additions on its luccet.js line:
 • `data-diagnostics` on the luccet.js tag, so that luccet.js shows its
   diagnostics panel;
-• `<script src="/__tern/live.js" …>` just before that tag: the live reload
+• `<script src="/__luccet/live.js" …>` just before that tag: the live reload
   script. It gets the tag's nonce, when the tag has one.
 Both go on the same line, so every other line stays where it is, and the
 line numbers in the diagnostics panel stay right. The file on disk is not
@@ -869,7 +875,7 @@ changed.
 
 Live reload. When you write a file under the root in this Neovim
 (|BufWritePost|), the server tells every open page with a Server-Sent Event
-on /__tern/events. Writes within 30 ms of each other, as from |:wall|, make
+on /__luccet/events. Writes within 30 ms of each other, as from |:wall|, make
 one event. Each page then acts on it:
 • The page of the note you wrote refreshes in place and keeps its scroll
   position. It fetches the file and renders the new note with luccet.js,
@@ -922,7 +928,7 @@ Limits                                                   *luccet-preview-limits*
 
 • Unsaved changes show for notes only, and with
   |luccet-option-preview.update| 'write' not at all: write the buffer.
-• Each refresh renders the whole note again in the browser, KaTeX
+• Each refresh renders the whole note again in the browser, its math
   included, so a large note's page lags behind fast typing. Changes made
   while it renders are taken in one more render.
 • Only writes in this Neovim refresh the page. When another program changes
@@ -933,8 +939,8 @@ Limits                                                   *luccet-preview-limits*
   accepts only that address, localhost and 127.0.0.1.
 • There is one preview per Neovim, with one root at a time.
 • A note larger than 16 MiB is served unchanged, without live reload.
-• URLs under /__tern/ belong to the server, so a folder named __tern at the
-  root cannot be served.
+• URLs under /__luccet/ belong to the server, so a folder named __luccet at
+  the root cannot be served.
 • A buffer whose file is a link to a file outside the root cannot be
   previewed.
 
@@ -1050,7 +1056,15 @@ these aliases:
     yaml         yaml yml
     markdown     md markdown
     cpp          cpp c++ cxx
+    json         json vega-lite vega
+    dot          dot graphviz
 
+The fences of Luccet's diagrams and plots add-ons are among them: 'json' for
+`vega-lite` and `vega` specifications, 'dot' for Graphviz, and 'mermaid', a
+syntax of its own, for `mermaid`. A `plot` fence has no syntax to load. >vim
+    let g:luccet_fence_languages =
+          \ ['javascript', 'css', 'html', 'json', 'dot', 'mermaid']
+<
 A dictionary gives the info words itself: >vim
     let g:luccet_fence_languages = {'python': ['py', 'python'], 'sh': ['sh']}
 <

@@ -25,16 +25,16 @@
 -- folders preview.hidden names), nor anything but regular files (a FIFO would hang a read); no directory listings.
 --
 -- Live reload. A served note (an .html that luccet.detect calls one) gets
--- data-diagnostics on its luccet.js tag, and <script src="/__tern/live.js">
+-- data-diagnostics on its luccet.js tag, and <script src="/__luccet/live.js">
 -- just before that tag, on the same line. luccet.js takes everything after
 -- its line as the note (<plaintext>), so nothing can go after it; on the
 -- line, a tag without line breaks keeps every file line where it was, and
 -- the runtime counts the same lines before the note, so the diagnostics
--- panel's file lines stay right. The script listens on /__tern/events
+-- panel's file lines stay right. The script listens on /__luccet/events
 -- (Server-Sent Events); see LIVE for what it does with each write.
 --
 -- Unsaved notes. With preview.update 'change', a note's buffer that is
--- modified is served in place of its file: the page and /__tern/raw get
+-- modified is served in place of its file: the page and /__luccet/raw get
 -- the buffer's text as :write would put it on disk, taken typing_ms after
 -- the last change (the request handlers run in luv callbacks, which cannot
 -- read buffers), and its pages get the same event as for a write. Once
@@ -157,7 +157,7 @@ local LIVE = [==[
     if (busy) { again = true; return; }
     busy = true;
     var y = window.scrollY;
-    fetch('/__tern/raw' + path, { cache: 'no-store' })
+    fetch('/__luccet/raw' + path, { cache: 'no-store' })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.arrayBuffer();
@@ -191,7 +191,7 @@ local LIVE = [==[
   }
 
   function connect() {
-    var es = new EventSource('/__tern/events');
+    var es = new EventSource('/__luccet/events');
     es.onopen = function () {
       if (dropped) return reload();
       wait = 500;
@@ -544,7 +544,7 @@ local function inject(body, path)
       -- runtime's note starts on the next one; else every write reloads.
       local whole = nl and line:lower():find('</script', d.col + #tag, true)
       local nonce = attr(tag, 'nonce') or attr(tag, 'data%-nonce')
-      local live = ('<script src="/__tern/live.js" data-path="%s" data-line="%d" data-head="%s"%s></script>'):format(
+      local live = ('<script src="/__luccet/live.js" data-path="%s" data-line="%d" data-head="%s"%s></script>'):format(
         path,
         whole and lnum or 0,
         whole and fnv(body, nl) or '',
@@ -641,13 +641,13 @@ local function handle(conn, text)
   if not path or path:find('\0', 1, true) then
     return fail(conn, 400, nil, no_body)
   end
-  if path == '/__tern/events' then
+  if path == '/__luccet/events' then
     return events(conn, no_body)
-  elseif path == '/__tern/live.js' then
+  elseif path == '/__luccet/live.js' then
     return send(conn, '200 OK', TYPES.js, LIVE, nil, no_body)
   end
-  local raw = path:match('^/__tern/raw(/.*)$')
-  if not raw and (path == '/__tern' or path:find('^/__tern/')) then
+  local raw = path:match('^/__luccet/raw(/.*)$')
+  if not raw and (path == '/__luccet' or path:find('^/__luccet/')) then
     return fail(conn, 404, nil, no_body)
   end
   file(conn, raw or path, h, no_body, raw ~= nil)
