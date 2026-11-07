@@ -776,7 +776,7 @@ return {
 
   { 'the note\'s macros, wherever their block is, and window.LUCCET\'s', function(T)
     local buf = buffer({
-      '<script>window.LUCCET = { katex: { macros: { "\\\\C": "\\\\mathbb{C}", \'\\\\abs\': \'|#1|\' } } }</script>', -- 1
+      '<script>window.LUCCET = { macros: { "\\\\C": "\\\\mathbb{C}", abs: \'|#1|\' } }</script>', -- 1
       '<script src="luccet.js"></script>', -- 2
       'In $\\R^n$ and $\\C$, $\\abs{x} = \\norm{y}$, $\\bad$.', -- 3
       '$$', -- 4

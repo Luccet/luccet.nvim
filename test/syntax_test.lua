@@ -217,6 +217,16 @@ return {
     note(lines, nil, { luccet_fence_languages = vim.empty_dict() })
     check({ { 'const', 'luccetFenceCode' }, { 'const', '!luccetFenceCode_javascript' } })
   end },
+  { "the fences of Luccet's diagrams and plots add-ons: json, dot and mermaid", function()
+    note({ '```vega-lite', '{"mark": "bar"}', '```', '```vega {#v}', '{"marks": []}', '```', '```graphviz',
+      'digraph { a -> b }', '```', '```mermaid', 'flowchart LR', '```', '```plot', 'y = sin x', '```' },
+      nil, { luccet_fence_languages = { 'json', 'dot', 'mermaid' } })
+    check({
+      { '{"mark"', 'luccetFenceCode_json' }, { '{"marks"', 'luccetFenceCode_json' },
+      { 'digraph', 'luccetFenceCode_dot' }, { 'flowchart', 'luccetFenceCode_mermaid' },
+      { 'y = sin', 'luccetFenceCode' }, { 'y = sin', '!luccetFenceCode_json' },
+    })
+  end },
   { 'display math, its closer group and its terminators', function()
     note({
       '$$',

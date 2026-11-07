@@ -33,8 +33,15 @@ end
 local NOTE = '<!doctype html><meta charset="utf-8"><script src="%s"></script>\n# Hi\n'
 
 -- No Luccet above the temporary directories, and no `luccet` on PATH but ours.
+-- Node comes linked into a directory of its own: its own directory may hold a
+-- `luccet` too, as npm link puts one beside node under nvm.
 local function clean(dir)
-  return { LUCCET_CLI = false, PATH = dir .. '/bin:/usr/bin:/bin:' .. vim.fs.dirname(vim.fn.exepath('node')) }
+  local bin, node = dir .. '/node-bin', vim.fn.exepath('node')
+  if node ~= '' and not vim.uv.fs_stat(bin .. '/node') then
+    vim.fn.mkdir(bin, 'p')
+    assert(vim.uv.fs_symlink(node, bin .. '/node'))
+  end
+  return { LUCCET_CLI = false, PATH = dir .. '/bin:/usr/bin:/bin:' .. bin }
 end
 
 local function needs_node(T)

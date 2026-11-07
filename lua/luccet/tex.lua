@@ -11,11 +11,12 @@
 --   fails (an argument missing, an expansion without end)
 --   script(text, 'sup' | 'sub') -> text in Unicode superscripts or
 --   subscripts, or nil when a character has none
--- It reads a small subset of KaTeX: Greek and symbols, function names,
--- scripts Unicode has (x^2, x_i, x^{-1}), \mathbb and the other alphabets,
--- \frac and \sqrt written on one line, accents on one letter, \text,
--- \left … \right. Spacing follows TeX's atom classes (x+y = 1 -> x + y = 1),
--- not the source's, so `\forall x\in A` and `\forall x \in A` read the same.
+-- It reads what a line of text can show of the engine's math: every symbol
+-- the engine knows (its own table, tex_symbols.lua), function names, scripts
+-- Unicode has (x^2, x_i, x^{-1}), \mathbb and the other alphabets, \frac and
+-- \sqrt written on one line, accents on one letter, \text, \left … \right.
+-- Spacing follows TeX's atom classes (x+y = 1 -> x + y = 1), not the
+-- source's, so `\forall x\in A` and `\forall x \in A` read the same.
 local M = {}
 
 -- Thrown as soon as a part has no Unicode form; unicode() returns nil.
@@ -108,6 +109,23 @@ local SYMBOL = {
   ['{'] = { '{', 'open' }, ['}'] = { '}', 'close' }, ['|'] = { '‖', 'ord' }, ['#'] = { '#', 'ord' },
   ['$'] = { '$', 'ord' }, ['%'] = { '%', 'ord' }, ['&'] = { '&', 'ord' }, ['_'] = { '_', 'ord' },
 }
+-- The engine's symbols (luccet.tex.symbols, which tools/tex_symbols.lua
+-- writes into tex_symbols.lua), so that a symbol reads as the character the
+-- page shows. Where the tables above have the name, the engine's character
+-- and class replace theirs; the rest are MORE, read only when no command
+-- below takes the name, so the engine's list never hides what this file
+-- does with a name (\not, \left, an accent). Its classes are TeX's, with two
+-- of the engine's: mi, a letter-like symbol, is ord here, and opn, an
+-- operator with its limits beside, op.
+local MORE = {}
+do
+  local CLASS = { mi = 'ord', opn = 'op' }
+  for _, s in ipairs(require('luccet.tex_symbols')) do
+    local entry = { s[2], CLASS[s[3]] or s[3] }
+    local into = SYM[s[1]] and SYM or SYMBOL[s[1]] and SYMBOL or MORE
+    into[s[1]] = entry
+  end
+end
 -- Explicit spaces: a backslash and a character, or a word.
 local GLUE = {
   [','] = ' ', [':'] = ' ', [';'] = ' ', ['>'] = ' ', [' '] = ' ', ['!'] = '',
@@ -407,6 +425,8 @@ local function command(s, i, atoms)
     push(' ', 'glue', { glue = true })
     push('mod', 'ord')
     push(' ', 'glue', { glue = true })
+  elseif MORE[v] then
+    push(MORE[v][1], MORE[v][2])
   else
     fail()
   end

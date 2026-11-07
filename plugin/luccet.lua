@@ -1,9 +1,9 @@
 -- SPDX-License-Identifier: MIT
 -- Commands. Modules load on first use, so startup costs nothing.
-if vim.g.loaded_tern then
+if vim.g.loaded_luccet then
   return
 end
-vim.g.loaded_tern = true
+vim.g.loaded_luccet = true
 
 if vim.fn.has('nvim-0.11') == 0 then
   vim.notify('luccet.nvim needs Neovim 0.11 or later', vim.log.levels.WARN)
